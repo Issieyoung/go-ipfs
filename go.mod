@@ -120,4 +120,7 @@ replace (
 	github.com/ipfs/go-ipfs-auth/selector => ../go-ipfs-auth/selector
 	github.com/ipfs/go-ipfs-auth/standard => ../go-ipfs-auth/standard
 	github.com/ipfs/go-ipfs-backup => ../go-ipfs-backup
+	github.com/ipfs/go-peertaskqueue => ../go-peertaskqueue
+	github.com/ipfs/go-merkledag => ../ipld/go-ipld-merkledag
+	github.com/ipfs/go-cid => ../ipld/cid/go-cid
 )
