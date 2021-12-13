@@ -101,7 +101,7 @@ require (
 	github.com/prometheus/client_golang v1.10.0
 	github.com/prometheus/common v0.18.0
 	github.com/stretchr/testify v1.7.0
-	github.com/syndtr/goleveldb v1.0.0
+	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/whyrusleeping/go-sysinfo v0.0.0-20190219211824-4a357d4b90b1
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7
 	go.opencensus.io v0.23.0
@@ -110,17 +110,21 @@ require (
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210514084401-e8d321eab015
+	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912
 )
 
 go 1.15
 
 replace (
 	github.com/ipfs/go-bitswap => ../go-bitswap
+	github.com/ipfs/go-cid => ../ipld/cid/go-cid
+	github.com/ipfs/go-ipfs-auth/auth-source-eth => ../go-ipfs-auth/auth-source-eth
 	github.com/ipfs/go-ipfs-auth/selector => ../go-ipfs-auth/selector
 	github.com/ipfs/go-ipfs-auth/standard => ../go-ipfs-auth/standard
 	github.com/ipfs/go-ipfs-backup => ../go-ipfs-backup
-	github.com/ipfs/go-peertaskqueue => ../go-peertaskqueue
+	github.com/ipfs/go-ipfs-chunker => ../go-ipfs-chunker
 	github.com/ipfs/go-merkledag => ../ipld/go-ipld-merkledag
-	github.com/ipfs/go-cid => ../ipld/cid/go-cid
+	github.com/ipfs/go-peertaskqueue => ../go-peertaskqueue
+	github.com/ipfs/go-unixfs => ../go-unixfs
+	github.com/ipfs/go-ipfs-auth/auth-source-eth => ../go-ipfs-auth/auth-source-eth
 )

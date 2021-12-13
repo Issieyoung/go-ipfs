@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"errors"
 	_ "expvar"
 	"fmt"
+	"github.com/ipfs/go-ipfs-auth/selector"
+	"github.com/ipfs/go-ipfs-auth/standard/model"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -68,6 +71,8 @@ const (
 	enableMultiplexKwd        = "enable-mplex-experiment"
 	// apiAddrKwd    = "address-api"
 	// swarmAddrKwd  = "address-swarm"
+	defaultTickerTime = 10
+	storeWeight       = 1
 )
 
 var daemonCmd = &cmds.Command{
@@ -511,6 +516,69 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 		fmt.Println("Received interrupt signal, shutting down...")
 		fmt.Println("(Hit ctrl-c again to force-shutdown the daemon.)")
 	}()
+
+	cfg, err := cctx.GetConfig()
+	if err != nil {
+		log.Errorf("failed to access config: %s", err)
+	}
+
+	if cfg.Source != "" {
+		// 区块链相关初始化   TODO 依赖注入
+		_, peers, err := selector.Daemon(cctx.ConfigRoot, cfg.Source, cfg.Identity.PeerID)
+		if err != nil {
+			return err
+		}
+
+		//node.BlockchainAPI = blockchainAPI
+		_, err = commands.BootstrapReplace(repo, cfg, peers)
+		if err != nil {
+			return err
+		}
+		// 定时更新本节点存储的块数量
+		go func() {
+			tickerTime := defaultTickerTime
+			if cfg.ReportTime != 0 {
+				tickerTime = cfg.ReportTime
+			}
+			ticker := time.NewTicker(time.Duration(tickerTime) * time.Minute)
+			log.Infof("定时%v minutes汇报贡献", tickerTime)
+			f := func() error {
+				// todo 获取挑战值
+				challenge, err := selector.GetChallenge()
+				if err != nil {
+					return err
+				}
+				fmt.Println(challenge)
+				keysChan, _ := node.Blockstore.AllKeysChan(context.TODO())
+				var mineral []model.IpfsMining
+				for c := range keysChan {
+					hash := c.Hash()
+					// todo 计算挑战
+					if true {
+						mineral = append(mineral, model.IpfsMining{
+							Cid:  c.String(),
+							Hash: hash.String(),
+						})
+					}
+				}
+				// 发送矿物
+				return selector.Mining(mineral)
+			}
+			// 启动时先执行一次
+			f()
+			for {
+				select {
+				case <-ticker.C:
+					err := f()
+					if err != nil {
+						log.Info(err)
+					}
+				case <-req.Context.Done():
+					break
+				}
+			}
+		}()
+	}
 
 	// Give the user heads up if daemon running in online mode has no peers after 1 minute
 	if !offline {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ipfs/go-ipfs/core"
+	coreiface "github.com/ipfs/interface-go-ipfs-core"
 	"io"
 	"path"
 	"sort"
@@ -394,6 +396,27 @@ ipfs swarm connect /ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N
 		cmds.Text: cmds.MakeTypedEncoder(stringListEncoder),
 	},
 	Type: stringList{},
+}
+
+func Connect(ctx context.Context, addrs []string, node *core.IpfsNode, api coreiface.CoreAPI) error {
+	pis, err := parseAddresses(ctx, addrs, node.DNSResolver)
+	if err != nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+	for _, pi := range pis {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("连接节点超时")
+		default:
+			err = api.Swarm().Connect(ctx, pi)
+			if err == nil {
+				return nil
+			}
+		}
+	}
+	return err
 }
 
 var swarmDisconnectCmd = &cmds.Command{

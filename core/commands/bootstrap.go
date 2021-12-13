@@ -418,6 +418,14 @@ func bootstrapRemoveAll(r repo.Repo, cfg *config.Config) ([]string, error) {
 	return config.BootstrapPeerStrings(removed), nil
 }
 
+func BootstrapReplace(r repo.Repo, cfg *config.Config, peers []string) ([]string, error) {
+	_, err := bootstrapRemoveAll(r, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return bootstrapAdd(r, cfg, peers)
+}
+
 const bootstrapSecurityWarning = `
 SECURITY WARNING:
 

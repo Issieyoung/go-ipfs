@@ -8,6 +8,7 @@ import (
 	"github.com/ipfs/go-ipfs-auth/selector"
 	"github.com/ipfs/go-ipfs-auth/standard/model"
 	"github.com/ipfs/go-ipfs-backup/allocate"
+	"github.com/ipfs/go-ipfs-backup/backup"
 	"github.com/ipfs/go-ipfs/core/commands/cmdenv"
 	"github.com/ipfs/go-ipfs/util"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -17,6 +18,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/cheggaaa/pb"
 	cmds "github.com/ipfs/go-ipfs-cmds"
@@ -30,10 +32,12 @@ import (
 var ErrDepthLimitExceeded = fmt.Errorf("depth limit exceeded")
 
 type AddEvent struct {
-	Name  string
-	Hash  string `json:",omitempty"`
-	Bytes int64  `json:",omitempty"`
-	Size  string `json:",omitempty"`
+	Name   string
+	Hash   string `json:",omitempty"`
+	Bytes  int64  `json:",omitempty"`
+	Size   string `json:",omitempty"`
+	Time   int64
+	Backup string
 }
 
 const (
@@ -53,6 +57,8 @@ const (
 	hashOptionName        = "hash"
 	inlineOptionName      = "inline"
 	inlineLimitOptionName = "inline-limit"
+	privateOptionName     = "private"
+	recursive             = "recursive"
 )
 
 const adderOutChanSize = 8
@@ -60,13 +66,15 @@ const adderOutChanSize = 8
 var BlockchainCmd = &cmds.Command{
 	Helptext: cmds.HelpText{
 		Tagline:          "区块链相关的命令",
-		ShortDescription: ``,
-		LongDescription:  ``,
+		ShortDescription: `区块链相关的命令`,
+		LongDescription:  `区块链相关的命令`,
 	},
 	Subcommands: map[string]*cmds.Command{
-		"add":  AddCmd,
-		"init": InitPeerCmd,
-		"peer": GetPeerInfo,
+		"add":    AddCmd,
+		"delete": DeleteCmd,
+		"backup": BackupInfoCmd,
+		"init":   InitPeerCmd,
+		"peer":   GetPeerInfo,
 	},
 }
 
@@ -146,6 +154,7 @@ only-hash, and progress/status related flags) will change the final hash.
 		cmds.OptionIgnore,
 		cmds.OptionIgnoreRules,
 		cmds.BoolOption(quietOptionName, "q", "Write minimal output."),
+		cmds.BoolOption(privateOptionName, "pri", "是否为私密文件，私密文件只在内网传播（后续可实现权限控制），从公网无法获取该文件").WithDefault(false),
 		cmds.BoolOption(quieterOptionName, "Q", "Write only final hash."),
 		cmds.BoolOption(silentOptionName, "Write no output."),
 		cmds.BoolOption(progressOptionName, "p", "Stream progress data."),
@@ -182,6 +191,7 @@ only-hash, and progress/status related flags) will change the final hash.
 		return nil
 	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
+		startTime := time.Now().UnixNano()
 		api, err := cmdenv.GetApi(env, req)
 		if err != nil {
 			return err
@@ -201,6 +211,12 @@ only-hash, and progress/status related flags) will change the final hash.
 		hashFunStr, _ := req.Options[hashOptionName].(string)
 		inline, _ := req.Options[inlineOptionName].(bool)
 		inlineLimit, _ := req.Options[inlineLimitOptionName].(int)
+		b := req.Options[privateOptionName].(bool)
+
+		if b {
+			cidVerSet = true
+			cidVer = 2
+		}
 
 		hashFunCode, ok := mh.Names[strings.ToLower(hashFunStr)]
 		if !ok {
@@ -281,10 +297,15 @@ only-hash, and progress/status related flags) will change the final hash.
 				} else {
 					output.Name = path.Join(addit.Name(), output.Name)
 				}
-
+				// 分发给随机peer
+				uid, err := util.GetUUIDString()
+				if err != nil {
+					return err
+				}
 				// 链上文件信息记录
 				err = selector.AddFile(model.IpfsFileInfo{
 					Cid:   h,
+					Uid:   uid,
 					State: 0,
 				})
 				if err != nil {
@@ -293,9 +314,21 @@ only-hash, and progress/status related flags) will change the final hash.
 				// TODO 是否要等待分发任务结果再返回
 				var allocateFunc func() error = func() error {
 					// 查找所有块
-					peerList, err := selector.GetPeerList()
+					pl, err := selector.GetPeerList()
 					if err != nil {
 						return err
+					}
+					node, err := cmdenv.GetNode(env)
+					if err != nil {
+						return err
+					}
+					// todo 检查节点是否可以连接
+					var peerList []model.CorePeer
+					for _, p := range pl {
+						err := Connect(req.Context, p.Addresses, node, api)
+						if err == nil {
+							peerList = append(peerList, p)
+						}
 					}
 					c, err := cid.Decode(h)
 					if err != nil {
@@ -306,18 +339,9 @@ only-hash, and progress/status related flags) will change the final hash.
 					if err != nil {
 						return err
 					}
-					node, err := cmdenv.GetNode(env)
-					if err != nil {
-						return err
-					}
-					// 分发给随机peer
-					uid, err := util.GetUUIDString()
-					if err != nil {
-						return err
-					}
 					setting := allocate.Setting{
 						Strategy:  0,
-						TargetNum: 3,
+						TargetNum: 1,
 					}
 					return Allocate(node, blockList, peerList, setting, uid)
 				}
@@ -325,13 +349,23 @@ only-hash, and progress/status related flags) will change the final hash.
 				go func() {
 					errChan <- allocateFunc()
 				}()
-				err = <-errChan
+				select {
+				case err = <-errChan:
+				case <-req.Context.Done():
+					return nil
+				}
+				backupInfo := "备份运行中"
+				if err != nil {
+					backupInfo = err.Error()
+				}
 
 				if err := res.Emit(&AddEvent{
-					Name:  output.Name,
-					Hash:  h,
-					Bytes: output.Bytes,
-					Size:  output.Size,
+					Name:   output.Name,
+					Hash:   h,
+					Bytes:  output.Bytes,
+					Size:   output.Size,
+					Time:   time.Now().UnixNano() - startTime,
+					Backup: backupInfo,
 				}); err != nil {
 					return err
 				}
@@ -496,19 +530,104 @@ only-hash, and progress/status related flags) will change the final hash.
 	Type: AddEvent{},
 }
 
+var DeleteCmd = &cmds.Command{
+	Arguments: []cmds.Argument{
+		cmds.StringArg("cid", true, false, "需要删除的文件的cid"),
+	},
+	Options: []cmds.Option{cmds.BoolOption(recursive).WithDefault(false)},
+	Run: func(req *cmds.Request, emit cmds.ResponseEmitter, env cmds.Environment) error {
+		// 清除指定cid的备份信息
+		reFlag := req.Options[recursive].(bool)
+		cStr := req.Arguments[0]
+		c, err := cid.Decode(cStr)
+		if err != nil {
+			return err
+		}
+		api, err := cmdenv.GetApi(env, req)
+		if err != nil {
+			return err
+		}
+		cids, err := CidGet(req.Context, api, c, reFlag)
+		node, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+		selector.DeleteFile(cStr)
+		return backup.Remove(node.Repo.Datastore(), cids...)
+	},
+	Helptext: cmds.HelpText{
+		Tagline:          "",
+		ShortDescription: "",
+		LongDescription:  "清除备份信息（测试用）",
+	},
+	Type: nil,
+}
+
+var BackupInfoCmd = &cmds.Command{
+	Arguments: []cmds.Argument{
+		cmds.StringArg("cid", false, false, "需要查询的文件的cid"),
+	},
+	Options: []cmds.Option{cmds.BoolOption(recursive).WithDefault(false)},
+	Run: func(req *cmds.Request, emit cmds.ResponseEmitter, env cmds.Environment) error {
+		// 清除指定cid的备份信息
+		reFlag := req.Options[recursive].(bool)
+
+		node, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+
+		if len(req.Arguments) == 0 {
+			all, err := backup.GetAll(node.Repo.Datastore())
+			if err != nil {
+				return err
+			}
+			return emit.Emit(all)
+		}
+
+		cStr := req.Arguments[0]
+		c, err := cid.Decode(cStr)
+		if err != nil {
+			return err
+		}
+		api, err := cmdenv.GetApi(env, req)
+		if err != nil {
+			return err
+		}
+		cids, err := CidGet(req.Context, api, c, reFlag)
+
+		res := map[string]interface{}{}
+		for _, s := range cids {
+			info, err := backup.Get(node.Repo.Datastore(), s)
+			if err != nil {
+				res[s] = err.Error()
+			} else {
+				res[s] = info
+			}
+		}
+		return emit.Emit(res)
+	},
+	Helptext: cmds.HelpText{
+		Tagline:          "",
+		ShortDescription: "",
+		LongDescription:  "查询备份信息",
+	},
+	Type: map[string]interface{}{},
+}
+
 var InitPeerCmd = &cmds.Command{
-	Helptext: cmds.HelpText{},
+	Helptext: cmds.HelpText{
+		Tagline:          "初始化区块链身份",
+		ShortDescription: "绑定区块链身份和节点id",
+		LongDescription:  "绑定区块链链上身份和ipfs节点id，暂时不提供解绑和改绑的可能，绑定前请认真核对",
+	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
 		n, err := cmdenv.GetNode(env)
 		if err != nil {
 			return err
 		}
 
-		peerId := n.Identity.String()
-		userCode, err := selector.GetUserCode()
-		if err != nil {
-			return err
-		}
+		pid := n.Identity.String()
 
 		var addressList []string
 		addrss, err := peer.AddrInfoToP2pAddrs(host.InfoFromHost(n.PeerHost))
@@ -529,10 +648,7 @@ var InitPeerCmd = &cmds.Command{
 		}
 
 		peer := model.CorePeer{
-			Peer: model.Peer{
-				UserCode: userCode,
-				PeerId:   peerId,
-			},
+			PeerId:    pid,
 			Addresses: addressList,
 		}
 		err = selector.InitPeer(peer)

@@ -83,6 +83,8 @@ type IpfsNode struct {
 	FilesRoot       *mfs.Root
 	RecordValidator record.Validator
 
+	//BlockchainAPI *selector.BlockchainAPI
+
 	// Online
 	PeerHost      p2phost.Host            `optional:"true"` // the network host (server+client)
 	Peering       peering.PeeringService  `optional:"true"`
