@@ -83,9 +83,10 @@ var FileCmd = &cmds.Command{
 		LongDescription:  `文件相关的命令`,
 	},
 	Subcommands: map[string]*cmds.Command{
-		"add":    AddCmd,
-		"delete": DeleteCmd,
-		"backup": BackupInfoCmd,
+		"add":      AddCmd,
+		"delete":   DeleteCmd,
+		"backup":   BackupInfoCmd,
+		"recharge": RechargeCmd,
 	},
 }
 
@@ -560,6 +561,25 @@ var DeleteCmd = &cmds.Command{
 		}
 		selector.DeleteFile(cStr)
 		return backup.Remove(node.Repo.Datastore(), cids...)
+	},
+	Helptext: cmds.HelpText{
+		Tagline:          "",
+		ShortDescription: "",
+		LongDescription:  "清除备份信息（测试用）",
+	},
+	Type: nil,
+}
+
+var RechargeCmd = &cmds.Command{
+	Arguments: []cmds.Argument{
+		cmds.StringArg("cid", true, false, "需要充值的文件的cid"),
+	},
+	Options: []cmds.Option{cmds.IntOption(fileStoreDays).WithDefault(30)},
+	Run: func(req *cmds.Request, emit cmds.ResponseEmitter, env cmds.Environment) error {
+		// 清除指定cid的备份信息
+		cid := req.Arguments[0]
+		days := req.Options[fileStoreDays].(int64)
+		return selector.RechargeFile(cid, days)
 	},
 	Helptext: cmds.HelpText{
 		Tagline:          "",
