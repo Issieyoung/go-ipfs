@@ -8,6 +8,7 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-ipfs-auth/selector"
 	"github.com/ipfs/go-ipfs-auth/standard/model"
 	"github.com/ipfs/go-ipfs-backup/allocate"
 	"github.com/ipfs/go-ipfs-backup/backup"
@@ -243,4 +244,22 @@ func resolveAddresses(ctx context.Context, addrs []string, rslv *madns.Resolver)
 	}
 
 	return maddrs, nil
+}
+
+func getReliablePeer(ctx context.Context, node *core.IpfsNode, api coreiface.CoreAPI, num int) ([]model.CorePeer, error) {
+	pl, err := selector.GetPeerList(0)
+	if err != nil {
+		return pl, err
+	}
+	var peerList []model.CorePeer
+	for _, p := range pl {
+		err := Connect(ctx, p.Addresses, node, api)
+		if err == nil {
+			peerList = append(peerList, p)
+			if len(peerList) >= num {
+				return peerList, nil
+			}
+		}
+	}
+	return peerList, nil
 }

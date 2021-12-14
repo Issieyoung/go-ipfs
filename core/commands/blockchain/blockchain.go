@@ -59,6 +59,7 @@ const (
 	inlineLimitOptionName = "inline-limit"
 	privateOptionName     = "private"
 	recursive             = "recursive"
+	fileStoreDays         = "fileStoreDays"
 )
 
 const adderOutChanSize = 8
@@ -70,11 +71,21 @@ var BlockchainCmd = &cmds.Command{
 		LongDescription:  `区块链相关的命令`,
 	},
 	Subcommands: map[string]*cmds.Command{
+		"file": FileCmd,
+		"peer": PeerCmd,
+	},
+}
+
+var FileCmd = &cmds.Command{
+	Helptext: cmds.HelpText{
+		Tagline:          "文件相关的命令",
+		ShortDescription: `文件相关的命令`,
+		LongDescription:  `文件相关的命令`,
+	},
+	Subcommands: map[string]*cmds.Command{
 		"add":    AddCmd,
 		"delete": DeleteCmd,
 		"backup": BackupInfoCmd,
-		"init":   InitPeerCmd,
-		"peer":   GetPeerInfo,
 	},
 }
 
@@ -170,6 +181,7 @@ only-hash, and progress/status related flags) will change the final hash.
 		cmds.StringOption(hashOptionName, "Hash function to use. Implies CIDv1 if not sha2-256. (experimental)").WithDefault("sha2-256"),
 		cmds.BoolOption(inlineOptionName, "Inline small blocks into CIDs. (experimental)"),
 		cmds.IntOption(inlineLimitOptionName, "Maximum block size to inline. (experimental)").WithDefault(32),
+		cmds.IntOption(fileStoreDays, "how many days you want to store in blockchain").WithDefault(30),
 	},
 	PreRun: func(req *cmds.Request, env cmds.Environment) error {
 		quiet, _ := req.Options[quietOptionName].(bool)
@@ -314,22 +326,11 @@ only-hash, and progress/status related flags) will change the final hash.
 				// TODO 是否要等待分发任务结果再返回
 				var allocateFunc func() error = func() error {
 					// 查找所有块
-					pl, err := selector.GetPeerList()
-					if err != nil {
-						return err
-					}
 					node, err := cmdenv.GetNode(env)
 					if err != nil {
 						return err
 					}
 					// todo 检查节点是否可以连接
-					var peerList []model.CorePeer
-					for _, p := range pl {
-						err := Connect(req.Context, p.Addresses, node, api)
-						if err == nil {
-							peerList = append(peerList, p)
-						}
-					}
 					c, err := cid.Decode(h)
 					if err != nil {
 						return err
@@ -343,6 +344,10 @@ only-hash, and progress/status related flags) will change the final hash.
 						Strategy:  0,
 						TargetNum: 1,
 					}
+					peerList, err := getReliablePeer(req.Context, node, api, 10)
+					if err != nil {
+						return err
+					}
 					return Allocate(node, blockList, peerList, setting, uid)
 				}
 				errChan := make(chan error)
@@ -354,6 +359,7 @@ only-hash, and progress/status related flags) will change the final hash.
 				case <-req.Context.Done():
 					return nil
 				}
+
 				backupInfo := "备份运行中"
 				if err != nil {
 					backupInfo = err.Error()
@@ -663,13 +669,28 @@ var InitPeerCmd = &cmds.Command{
 
 const (
 	peerId = "peerId"
+	number = "num"
 )
 
-var GetPeerInfo = &cmds.Command{
+var PeerCmd = &cmds.Command{
 	Helptext:  cmds.HelpText{},
 	Arguments: nil,
-	Options:   []cmds.Option{cmds.StringOption(peerId, "pid", "查询节点的id，不填代表查询本节点").WithDefault("")},
+	Subcommands: map[string]*cmds.Command{
+		"init": InitPeerCmd,
+	},
+	Options: []cmds.Option{
+		cmds.StringOption(peerId, "pid", "查询节点的id，不填代表查询本节点").WithDefault(""),
+		cmds.IntOption(number, "numb", "how many peer you want to get from blockchain").WithDefault(1),
+	},
 	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
+		num := req.Options[number].(int)
+		if num != 1 {
+			list, err := selector.GetPeerList(num)
+			if err != nil {
+				return err
+			}
+			return res.Emit(list)
+		}
 
 		pid := req.Options[peerId].(string)
 		if pid == "" {
@@ -691,5 +712,5 @@ var GetPeerInfo = &cmds.Command{
 		}
 		return res.Emit(peer)
 	},
-	Type: model.CorePeer{},
+	Type: []model.CorePeer{},
 }
