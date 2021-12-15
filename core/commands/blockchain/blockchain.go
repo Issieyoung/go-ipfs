@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-ipfs-auth/selector"
 	"github.com/ipfs/go-ipfs-auth/standard/model"
 	"github.com/ipfs/go-ipfs-backup/allocate"
@@ -17,6 +18,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -225,6 +227,7 @@ only-hash, and progress/status related flags) will change the final hash.
 		inline, _ := req.Options[inlineOptionName].(bool)
 		inlineLimit, _ := req.Options[inlineLimitOptionName].(int)
 		b := req.Options[privateOptionName].(bool)
+		days := req.Options[fileStoreDays].(int)
 
 		if b {
 			cidVerSet = true
@@ -315,55 +318,71 @@ only-hash, and progress/status related flags) will change the final hash.
 				if err != nil {
 					return err
 				}
+				// 计算文件大小(kb)
+				s, err := strconv.Atoi(output.Size)
+				s /= 1024
 				// 链上文件信息记录
 				err = selector.AddFile(model.IpfsFileInfo{
-					Cid:   h,
-					Uid:   uid,
-					State: 0,
+					Cid:       h,
+					Uid:       uid,
+					State:     0,
+					Size:      int64(s),
+					StoreDays: int64(days),
 				})
 				if err != nil {
 					return err
 				}
-				// TODO 是否要等待分发任务结果再返回
-				var allocateFunc func() error = func() error {
-					// 查找所有块
-					node, err := cmdenv.GetNode(env)
-					if err != nil {
-						return err
-					}
-					// todo 检查节点是否可以连接
-					c, err := cid.Decode(h)
-					if err != nil {
-						return err
-					}
-					ctx := context.TODO()
-					blockList, err := BlockGetRecursive(ctx, api, c)
-					if err != nil {
-						return err
-					}
-					setting := allocate.Setting{
-						Strategy:  0,
-						TargetNum: 1,
-					}
-					peerList, err := getReliablePeer(req.Context, node, api, 10)
-					if err != nil {
-						return err
-					}
-					return Allocate(node, blockList, peerList, setting, uid)
-				}
-				errChan := make(chan error)
-				go func() {
-					errChan <- allocateFunc()
-				}()
-				select {
-				case err = <-errChan:
-				case <-req.Context.Done():
-					return nil
-				}
-
-				backupInfo := "备份运行中"
+				node, err := cmdenv.GetNode(env)
 				if err != nil {
-					backupInfo = err.Error()
+					return err
+				}
+				backupInfo := "备份运行中"
+				_, err = backup.GetFileBackupInfo(node.Repo.Datastore(), h)
+				if err == datastore.ErrNotFound {
+					// TODO 是否要等待分发任务结果再返回
+					var allocateFunc func() error = func() error {
+						// 查找所有块
+
+						// todo 检查节点是否可以连接
+						c, err := cid.Decode(h)
+						if err != nil {
+							return err
+						}
+						ctx := context.TODO()
+						blockList, err := BlockGetRecursive(ctx, api, c)
+						if err != nil {
+							return err
+						}
+						setting := allocate.Setting{
+							Strategy:  0,
+							TargetNum: 1,
+						}
+						peerList, err := getReliablePeer(req.Context, node, api, 10)
+						if err != nil {
+							return err
+						}
+
+						if len(peerList) < setting.TargetNum {
+							return fmt.Errorf("节点数不满足备份条件")
+						}
+
+						return Allocate(node, blockList, peerList, setting, uid, uint64(s))
+					}
+					errChan := make(chan error)
+					go func() {
+						errChan <- allocateFunc()
+					}()
+					select {
+					case err = <-errChan:
+					case <-req.Context.Done():
+						return nil
+					}
+
+					if err != nil {
+						backupInfo = err.Error()
+					}
+				} else {
+					backupInfo = "文件已有备份"
 				}
 
 				if err := res.Emit(&AddEvent{
@@ -559,7 +578,11 @@ var DeleteCmd = &cmds.Command{
 		if err != nil {
 			return err
 		}
-		selector.DeleteFile(cStr)
+		err = selector.DeleteFile(cStr)
+		if err != nil {
+			return err
+		}
+		// 现在清除备份信息 todo 向备份节点传播删除信息
 		return backup.Remove(node.Repo.Datastore(), cids...)
 	},
 	Helptext: cmds.HelpText{
@@ -578,8 +601,8 @@ var RechargeCmd = &cmds.Command{
 	Run: func(req *cmds.Request, emit cmds.ResponseEmitter, env cmds.Environment) error {
 		// 清除指定cid的备份信息
 		cid := req.Arguments[0]
-		days := req.Options[fileStoreDays].(int64)
-		return selector.RechargeFile(cid, days)
+		days := req.Options[fileStoreDays].(int)
+		return selector.RechargeFile(cid, int64(days))
 	},
 	Helptext: cmds.HelpText{
 		Tagline:          "",

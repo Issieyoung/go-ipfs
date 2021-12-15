@@ -65,7 +65,7 @@ func CidGet(ctx context.Context, api coreiface.CoreAPI, cid cid.Cid, reFlag bool
 	return cidList, nil
 }
 
-func Allocate(node *core.IpfsNode, blockList []blocks.Block, serverList []model.CorePeer, setting allocate.Setting, uid string) error {
+func Allocate(node *core.IpfsNode, blockList []blocks.Block, serverList []model.CorePeer, setting allocate.Setting, uid string, size uint64) error {
 	ds := node.Repo.Datastore()
 	bs, oneLineFlag := node.Exchange.(*bitswap.Bitswap)
 
@@ -97,9 +97,10 @@ func Allocate(node *core.IpfsNode, blockList []blocks.Block, serverList []model.
 					return err
 				}
 			}
+			// 记录备份信息
+			backup.AddFileBackupInfo(ds, loadList, uid, size)
 			// 分片分发
 			bs.PushTasks(loadList)
-			// 先分发文件片，再记录分片备份信息
 			// 记录的逻辑在func (e *Engine) MessageSent(p peer.ID, m bsmsg.BitSwapMessage)中
 			// todo 或者考虑在这里先记录分发信息，在messageSent中响应分发是否成功
 			return nil
