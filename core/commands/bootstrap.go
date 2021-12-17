@@ -424,6 +424,13 @@ func BootstrapReplace(r repo.Repo, cfg *config.Config, peers []string) ([]string
 	if err != nil {
 		return nil, err
 	}
+	// 需要接入ipfs公网的节点开启这个选项
+	if cfg.Public {
+		peers = append(peers, config.DefaultBootstrapAddresses...)
+	}
+	// 添加手动设置的节点
+	peers = append(peers, cfg.Bootstrap...)
+
 	return bootstrapAdd(r, cfg, peers)
 }
 

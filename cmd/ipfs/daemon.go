@@ -6,6 +6,7 @@ import (
 	"errors"
 	_ "expvar"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/ipfs/go-ipfs-auth/selector"
 	"github.com/ipfs/go-ipfs-auth/standard/model"
 	"github.com/ipfs/go-ipfs-auth/standard/standardConst"
@@ -78,7 +79,7 @@ const (
 	enableMultiplexKwd        = "enable-mplex-experiment"
 	// apiAddrKwd    = "address-api"
 	// swarmAddrKwd  = "address-swarm"
-	defaultTickerTime = 3
+	defaultTickerTime = 10
 	storeWeight       = 1
 )
 
@@ -564,7 +565,7 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 				tickerTime = cfg.ReportTime
 			}
 			// todo 时间调整
-			ticker := time.NewTicker(time.Duration(tickerTime) * time.Minute)
+			ticker := time.NewTicker(time.Duration(tickerTime) * time.Second)
 			log.Infof("定时%v minutes汇报贡献", tickerTime)
 			preChallenge := ""
 			f := func() error {
@@ -598,6 +599,7 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 				max := 0
 				num := 0
 				fail := 0
+				i := 0
 				// TODO 缓存cid进一个更方便查找的结构？暂时看起来性能是ok的
 				for c := range keysChan {
 					num++
@@ -608,6 +610,23 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 						continue
 					}
 					temp := CommonPrefixLen(decode.Digest, challengeByte)
+					for ; i < 10; i++ {
+						s2 := uuid.New().String()
+						fakeMining := model.IpfsMining{
+							Cid:         c.String(),
+							Hash:        base64.StdEncoding.EncodeToString(decode.Digest),
+							Address:     s2,
+							LeadingZero: temp,
+							Challenge:   challenge,
+						}
+						// 发送矿物
+						fmt.Printf("挖矿时间%v\n", time.Now())
+						err = selector.Mining(fakeMining)
+						// todo 发送错误应当重新发送
+						if err != nil {
+							return err
+						}
+					}
 					if max < temp {
 						max = temp
 						mineral.Cid = c.String()
