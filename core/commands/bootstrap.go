@@ -2,7 +2,6 @@ package commands
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"sort"
 
@@ -294,19 +293,21 @@ func bootstrapWritePeers(w io.Writer, prefix string, peers []string) error {
 	return nil
 }
 
-func bootstrapAdd(r repo.Repo, cfg *config.Config, peers []string) ([]string, error) {
-	for _, p := range peers {
+func bootstrapAdd(r repo.Repo, cfg *config.Config, peerList []string) ([]string, error) {
+	var peers []string
+	for _, p := range peerList {
 		m, err := ma.NewMultiaddr(p)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		tpt, p2ppart := ma.SplitLast(m)
 		if p2ppart == nil || p2ppart.Protocol().Code != ma.P_P2P {
-			return nil, fmt.Errorf("invalid bootstrap address: %s", p)
+			continue
 		}
 		if tpt == nil {
-			return nil, fmt.Errorf("bootstrap address without a transport: %s", p)
+			continue
 		}
+		peers = append(peerList, p)
 	}
 
 	addedMap := map[string]struct{}{}
