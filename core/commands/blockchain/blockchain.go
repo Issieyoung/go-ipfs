@@ -228,6 +228,7 @@ only-hash, and progress/status related flags) will change the final hash.
 		inlineLimit, _ := req.Options[inlineLimitOptionName].(int)
 		b := req.Options[privateOptionName].(bool)
 		days := req.Options[fileStoreDays].(int)
+		fmt.Println(days)
 
 		if b {
 			cidVerSet = true
@@ -307,20 +308,23 @@ only-hash, and progress/status related flags) will change the final hash.
 				if output.Path != nil {
 					h = enc.Encode(output.Path.Cid())
 				}
-
 				if !dir && addit.Name() != "" {
 					output.Name = addit.Name()
 				} else {
 					output.Name = path.Join(addit.Name(), output.Name)
 				}
+
 				// 分发给随机peer
 				uid, err := util.GetUUIDString()
 				if err != nil {
 					return err
 				}
 				// 计算文件大小(kb)
-				s, err := strconv.Atoi(output.Size)
-				s /= 1024
+				s1, err := strconv.Atoi(output.Size)
+				s := s1 / 1024
+				if s1%1024 != 0 {
+					s += 1
+				}
 				// 链上文件信息记录
 				err = selector.AddFile(model.IpfsFileInfo{
 					Cid:       h,
@@ -341,14 +345,13 @@ only-hash, and progress/status related flags) will change the final hash.
 				if err == datastore.ErrNotFound {
 					// TODO 是否要等待分发任务结果再返回
 					var allocateFunc func() error = func() error {
-						// 查找所有块
-
-						// todo 检查节点是否可以连接
+						// 检查节点是否可以连接
 						c, err := cid.Decode(h)
 						if err != nil {
 							return err
 						}
 						ctx := context.TODO()
+						// 查找所有块
 						blockList, err := BlockGetRecursive(ctx, api, c)
 						if err != nil {
 							return err
@@ -361,7 +364,6 @@ only-hash, and progress/status related flags) will change the final hash.
 						if err != nil {
 							return err
 						}
-
 						if len(peerList) < setting.TargetNum {
 							return fmt.Errorf("节点数不满足备份条件")
 						}

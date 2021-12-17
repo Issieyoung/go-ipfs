@@ -2,18 +2,25 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	_ "expvar"
 	"fmt"
 	"github.com/ipfs/go-ipfs-auth/selector"
 	"github.com/ipfs/go-ipfs-auth/standard/model"
+	"github.com/ipfs/go-ipfs-auth/standard/standardConst"
+	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/peer"
+	mh "github.com/multiformats/go-multihash"
 	"io/ioutil"
+	"math/bits"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -71,7 +78,7 @@ const (
 	enableMultiplexKwd        = "enable-mplex-experiment"
 	// apiAddrKwd    = "address-api"
 	// swarmAddrKwd  = "address-swarm"
-	defaultTickerTime = 10
+	defaultTickerTime = 3
 	storeWeight       = 1
 )
 
@@ -536,33 +543,87 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 		}
 		// 定时更新本节点存储的块数量
 		go func() {
+			// 重启更新节点地址
+			var addressList []string
+			addrss, err := peer.AddrInfoToP2pAddrs(host.InfoFromHost(node.PeerHost))
+			var s string
+			for _, addr := range addrss {
+				s = addr.String()
+				if !strings.Contains(s, "127.0.0.1") && !strings.Contains(s, "/::1/") {
+					addressList = append(addressList, s)
+				}
+			}
+			err = selector.UpdateAddress(addressList)
+			if err != nil {
+				log.Error(err)
+			}
+			fmt.Printf("更新节点地址成功\n")
+
 			tickerTime := defaultTickerTime
 			if cfg.ReportTime != 0 {
 				tickerTime = cfg.ReportTime
 			}
+			// todo 时间调整
 			ticker := time.NewTicker(time.Duration(tickerTime) * time.Minute)
 			log.Infof("定时%v minutes汇报贡献", tickerTime)
+			preChallenge := ""
 			f := func() error {
-				// todo 获取挑战值
+				start := time.Now().Nanosecond()
+				// 发送心跳,暂无必要
+				/*err = selector.Heartbeat()
+				if err != nil {
+					log.Error(err)
+				}*/
+				// 获取挑战值
 				challenge, err := selector.GetChallenge()
+				if err == standardConst.ChallengeError {
+					log.Error(err)
+				}
 				if err != nil {
 					return err
 				}
-				fmt.Println(challenge)
+				if challenge == preChallenge {
+					return fmt.Errorf("已发送当前挑战值")
+				}
+
+				challengeByte, err := base64.StdEncoding.DecodeString(challenge)
+				if err != nil {
+					return err
+				}
+
 				keysChan, _ := node.Blockstore.AllKeysChan(context.TODO())
-				var mineral []model.IpfsMining
+				mineral := model.IpfsMining{
+					Challenge: challenge,
+				}
+				max := 0
+				num := 0
+				fail := 0
+				// TODO 缓存cid进一个更方便查找的结构？暂时看起来性能是ok的
 				for c := range keysChan {
+					num++
 					hash := c.Hash()
-					// todo 计算挑战
-					if true {
-						mineral = append(mineral, model.IpfsMining{
-							Cid:  c.String(),
-							Hash: hash.String(),
-						})
+					decode, err := mh.Decode(hash)
+					if err != nil || decode.Length != 32 {
+						fail++
+						continue
+					}
+					temp := CommonPrefixLen(decode.Digest, challengeByte)
+					if max < temp {
+						max = temp
+						mineral.Cid = c.String()
+						mineral.Hash = base64.StdEncoding.EncodeToString(decode.Digest)
 					}
 				}
+				mineral.LeadingZero = max
 				// 发送矿物
-				return selector.Mining(mineral)
+				err = selector.Mining(mineral)
+				// todo 发送错误应当重新发送
+				if err != nil {
+					return err
+				}
+				preChallenge = challenge
+				fmt.Printf("耗时：%vns,总共有：%v块.失败：%v块，最佳cid为%v，前导零为%v\n", time.Now().Nanosecond()-start, num, fail, mineral.Cid, max)
+				return nil
 			}
 			// 启动时先执行一次
 			f()
@@ -617,6 +678,21 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 	}
 
 	return errs
+}
+
+// CommonPrefixLen 计算两个32位byte数组的共同前导
+func CommonPrefixLen(a, b []byte) int {
+	if len(a) != 32 || len(b) != 32 {
+		log.Error("前导零计算，位数错误")
+		return 0
+	}
+	for i := 0; i < 32; i++ {
+		c := a[i] ^ b[i]
+		if c != 0 {
+			return i*8 + bits.LeadingZeros8(uint8(c))
+		}
+	}
+	return 32 * 8
 }
 
 // serveHTTPApi collects options, creates listener, prints status message and starts serving requests
