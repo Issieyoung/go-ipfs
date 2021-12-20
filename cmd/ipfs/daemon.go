@@ -583,7 +583,8 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 					return err
 				}
 				if challenge == preChallenge {
-					return fmt.Errorf("已发送当前挑战值")
+					log.Infof("已发送当前挑战值")
+					return nil
 				}
 
 				challengeByte, err := base64.StdEncoding.DecodeString(challenge)
@@ -639,7 +640,7 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 					return err
 				}
 				preChallenge = challenge
-				log.Infof("mining结束，耗时：%vns,参与块数：%v块.失败：%v块，最佳cid为%v，前导零为%v\n", time.Now().Nanosecond()-start, num, fail, mineral.Cid, max)
+				log.Infof("mining结束，耗时：%vns,参与块数：%v块.失败：%v块，最佳cid为%v，前导零为%v\n", (time.Now().Nanosecond()-start)/int(time.Millisecond), num, fail, mineral.Cid, max)
 				return nil
 			}
 			// 启动时先执行一次
