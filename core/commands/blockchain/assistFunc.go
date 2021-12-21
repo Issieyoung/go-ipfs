@@ -247,6 +247,7 @@ func resolveAddresses(ctx context.Context, addrs []string, rslv *madns.Resolver)
 	return maddrs, nil
 }
 
+// getReliablePeer 获取可信节点列表
 func getReliablePeer(ctx context.Context, node *core.IpfsNode, api coreiface.CoreAPI, num int) ([]model.CorePeer, error) {
 	pl, err := selector.GetPeerList(0)
 	if err != nil {
@@ -254,6 +255,9 @@ func getReliablePeer(ctx context.Context, node *core.IpfsNode, api coreiface.Cor
 	}
 	var peerList []model.CorePeer
 	for _, p := range pl {
+		if p.PeerId == "" {
+			continue
+		}
 		err := Connect(ctx, p.Addresses, node, api)
 		if err == nil {
 			peerList = append(peerList, p)

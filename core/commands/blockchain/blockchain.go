@@ -62,6 +62,8 @@ const (
 	privateOptionName     = "private"
 	recursive             = "recursive"
 	fileStoreDays         = "fileStoreDays"
+	isFile                = "isFile"
+	ownerAddress          = "owner"
 )
 
 const adderOutChanSize = 8
@@ -185,6 +187,7 @@ only-hash, and progress/status related flags) will change the final hash.
 		cmds.BoolOption(inlineOptionName, "Inline small blocks into CIDs. (experimental)"),
 		cmds.IntOption(inlineLimitOptionName, "Maximum block size to inline. (experimental)").WithDefault(32),
 		cmds.IntOption(fileStoreDays, "how many days you want to store in blockchain").WithDefault(30),
+		cmds.StringOption(ownerAddress, ""),
 	},
 	PreRun: func(req *cmds.Request, env cmds.Environment) error {
 		quiet, _ := req.Options[quietOptionName].(bool)
@@ -210,6 +213,29 @@ only-hash, and progress/status related flags) will change the final hash.
 		api, err := cmdenv.GetApi(env, req)
 		if err != nil {
 			return err
+		}
+
+		// 提前检查网络状态
+		setting := allocate.Setting{
+			Strategy:  0,
+			TargetNum: 1,
+		}
+		node, err := cmdenv.GetNode(env)
+		if err != nil {
+			return err
+		}
+		peerList, err := getReliablePeer(req.Context, node, api, 10)
+		if err != nil {
+			return err
+		}
+		if len(peerList) < setting.TargetNum {
+			return fmt.Errorf("在线节点数不满足备份条件")
+		}
+
+		owner := req.Options[ownerAddress].(string)
+		if owner != "" && owner != "self" {
+			// todo 检查信任状态
+
 		}
 
 		progress, _ := req.Options[progressOptionName].(bool)
@@ -332,14 +358,12 @@ only-hash, and progress/status related flags) will change the final hash.
 					State:     0,
 					Size:      int64(s),
 					StoreDays: int64(days),
+					Owner:     owner,
 				})
 				if err != nil {
 					return err
 				}
-				node, err := cmdenv.GetNode(env)
-				if err != nil {
-					return err
-				}
+
 				backupInfo := "备份运行中"
 				_, err = backup.GetFileBackupInfo(node.Repo.Datastore(), h)
 				if err == datastore.ErrNotFound {
@@ -356,16 +380,13 @@ only-hash, and progress/status related flags) will change the final hash.
 						if err != nil {
 							return err
 						}
-						setting := allocate.Setting{
-							Strategy:  0,
-							TargetNum: 1,
-						}
-						peerList, err := getReliablePeer(req.Context, node, api, 10)
+
+						peerList, err = getReliablePeer(req.Context, node, api, 10)
 						if err != nil {
 							return err
 						}
 						if len(peerList) < setting.TargetNum {
-							return fmt.Errorf("节点数不满足备份条件")
+							return fmt.Errorf("在线节点数不满足备份条件")
 						}
 
 						return Allocate(node, blockList, peerList, setting, uid, uint64(s))
@@ -580,10 +601,10 @@ var DeleteCmd = &cmds.Command{
 		if err != nil {
 			return err
 		}
-		err = selector.DeleteFile(cStr)
+		/*err = selector.DeleteFile(cStr)
 		if err != nil {
 			return err
-		}
+		}*/
 		// 现在清除备份信息 todo 向备份节点传播删除信息
 		return backup.Remove(node.Repo.Datastore(), cids...)
 	},
@@ -618,10 +639,14 @@ var BackupInfoCmd = &cmds.Command{
 	Arguments: []cmds.Argument{
 		cmds.StringArg("cid", false, false, "需要查询的文件的cid"),
 	},
-	Options: []cmds.Option{cmds.BoolOption(recursive).WithDefault(false)},
+	Options: []cmds.Option{
+		cmds.BoolOption(recursive).WithDefault(false),
+		cmds.BoolOption(isFile).WithDefault(true),
+	},
 	Run: func(req *cmds.Request, emit cmds.ResponseEmitter, env cmds.Environment) error {
 		// 清除指定cid的备份信息
 		reFlag := req.Options[recursive].(bool)
+		fileFlag := req.Options[isFile].(bool)
 
 		node, err := cmdenv.GetNode(env)
 		if err != nil {
@@ -645,6 +670,15 @@ var BackupInfoCmd = &cmds.Command{
 		if err != nil {
 			return err
 		}
+
+		if fileFlag {
+			info, err := backup.GetFileBackupInfo(node.Repo.Datastore(), cStr)
+			if err != nil {
+				return err
+			}
+			return emit.Emit(*info)
+		}
+
 		cids, err := CidGet(req.Context, api, c, reFlag)
 
 		res := map[string]interface{}{}
@@ -663,7 +697,7 @@ var BackupInfoCmd = &cmds.Command{
 		ShortDescription: "",
 		LongDescription:  "查询备份信息",
 	},
-	Type: map[string]interface{}{},
+	Type: backup.FileInfo{},
 }
 
 var InitPeerCmd = &cmds.Command{
