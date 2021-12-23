@@ -126,5 +126,4 @@ replace (
 	github.com/ipfs/go-merkledag => ../ipld/go-ipld-merkledag
 	github.com/ipfs/go-peertaskqueue => ../go-peertaskqueue
 	github.com/ipfs/go-unixfs => ../go-unixfs
-	github.com/ipfs/go-ipfs-auth/auth-source-eth => ../go-ipfs-auth/auth-source-eth
 )

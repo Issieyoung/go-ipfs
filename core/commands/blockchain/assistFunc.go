@@ -98,7 +98,10 @@ func Allocate(node *core.IpfsNode, blockList []blocks.Block, serverList []model.
 				}
 			}
 			// 记录备份信息
-			backup.AddFileBackupInfo(ds, loadList, uid, size)
+			_, err := backup.AddFileBackupInfo(ds, loadList, uid, size)
+			if err != nil {
+				return err
+			}
 			// 分片分发
 			bs.PushTasks(loadList)
 			// 记录的逻辑在func (e *Engine) MessageSent(p peer.ID, m bsmsg.BitSwapMessage)中
@@ -106,7 +109,7 @@ func Allocate(node *core.IpfsNode, blockList []blocks.Block, serverList []model.
 			return nil
 		} else {
 			// todo 线下模式，记录未分发，提示用户
-			return fmt.Errorf("线下模式无法分发为文件")
+			return fmt.Errorf("线下模式无法分发文件")
 		}
 
 	// 策略二： 随机分配

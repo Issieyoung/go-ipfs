@@ -568,6 +568,9 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 			log.Infof("定时%v minutes汇报贡献", tickerTime)
 			preChallenge := ""
 			f := func() error {
+				// 获取当前所有的携程
+				log.Infof("当前携程数量%v", runtime.NumGoroutine())
+
 				start := time.Now().Nanosecond()
 				// 发送心跳,暂无必要
 				/*err = selector.Heartbeat()
