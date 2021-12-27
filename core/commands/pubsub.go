@@ -40,10 +40,11 @@ const (
 )
 
 type pubsubMessage struct {
-	From     []byte   `json:"from,omitempty"`
-	Data     []byte   `json:"data,omitempty"`
-	Seqno    []byte   `json:"seqno,omitempty"`
-	TopicIDs []string `json:"topicIDs,omitempty"`
+	From       []byte   `json:"from,omitempty"`
+	Data       []byte   `json:"data,omitempty"`
+	Seqno      []byte   `json:"seqno,omitempty"`
+	TopicIDs   []string `json:"topicIDs,omitempty"`
+	DataString string
 }
 
 var PubsubSubCmd = &cmds.Command{
@@ -93,7 +94,7 @@ This command outputs data in the following encodings:
 			f.Flush()
 		}
 
-		for {
+		for i := 0; i < 2; i++ {
 			msg, err := sub.Next(req.Context)
 			if err == io.EOF || err == context.Canceled {
 				return nil
@@ -102,14 +103,16 @@ This command outputs data in the following encodings:
 			}
 
 			if err := res.Emit(&pubsubMessage{
-				Data:     msg.Data(),
-				From:     []byte(msg.From()),
-				Seqno:    msg.Seq(),
-				TopicIDs: msg.Topics(),
+				Data:       msg.Data(),
+				From:       []byte(msg.From().String()),
+				Seqno:      msg.Seq(),
+				TopicIDs:   msg.Topics(),
+				DataString: string(msg.Data()),
 			}); err != nil {
 				return err
 			}
 		}
+		return nil
 	},
 	Encoders: cmds.EncoderMap{
 		cmds.Text: cmds.MakeTypedEncoder(func(req *cmds.Request, w io.Writer, psm *pubsubMessage) error {

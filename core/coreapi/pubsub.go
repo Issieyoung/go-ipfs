@@ -74,6 +74,11 @@ func (api *PubSubAPI) Subscribe(ctx context.Context, topic string, opts ...caopt
 	if err != nil {
 		return nil, err
 	}
+	/*top, err := api.pubSub.Join(topic)
+	if err != nil {
+		return nil, err
+	}
+	sub, err := top.Subscribe()*/
 
 	return &pubSubSubscription{sub}, nil
 }

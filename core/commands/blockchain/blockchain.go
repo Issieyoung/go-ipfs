@@ -351,8 +351,8 @@ only-hash, and progress/status related flags) will change the final hash.
 				if s1%1024 != 0 {
 					s += 1
 				}
-				// 链上文件信息记录
-				err = selector.AddFile(model.IpfsFileInfo{
+				// 链上文件信息记录  暂时不需要
+				/*err = selector.AddFile(model.IpfsFileInfo{
 					Cid:       h,
 					Uid:       uid,
 					State:     0,
@@ -362,7 +362,7 @@ only-hash, and progress/status related flags) will change the final hash.
 				})
 				if err != nil {
 					return err
-				}
+				}*/
 
 				backupInfo := "备份运行中"
 				_, err = backup.GetFileBackupInfo(node.Repo.Datastore(), h)
