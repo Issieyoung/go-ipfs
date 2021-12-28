@@ -224,6 +224,14 @@ only-hash, and progress/status related flags) will change the final hash.
 		if err != nil {
 			return err
 		}
+		cfg, err := node.Repo.Config()
+		if err != nil {
+			return err
+		}
+		if cfg.BackupNum > 0 {
+			setting.TargetNum = cfg.BackupNum
+		}
+
 		peerList, err := getReliablePeer(req.Context, node, api, 10)
 		if err != nil {
 			return err
@@ -352,7 +360,7 @@ only-hash, and progress/status related flags) will change the final hash.
 					s += 1
 				}
 				// 链上文件信息记录  暂时不需要
-				/*err = selector.AddFile(model.IpfsFileInfo{
+				err = selector.AddFile(model.IpfsFileInfo{
 					Cid:       h,
 					Uid:       uid,
 					State:     0,
@@ -362,7 +370,7 @@ only-hash, and progress/status related flags) will change the final hash.
 				})
 				if err != nil {
 					return err
-				}*/
+				}
 
 				backupInfo := "备份运行中"
 				_, err = backup.GetFileBackupInfo(node.Repo.Datastore(), h)
@@ -601,10 +609,10 @@ var DeleteCmd = &cmds.Command{
 		if err != nil {
 			return err
 		}
-		/*err = selector.DeleteFile(cStr)
+		err = selector.DeleteFile(cStr)
 		if err != nil {
 			return err
-		}*/
+		}
 		// 现在清除备份信息 todo 向备份节点传播删除信息
 		return backup.Remove(node.Repo.Datastore(), cids...)
 	},
@@ -630,7 +638,7 @@ var RechargeCmd = &cmds.Command{
 	Helptext: cmds.HelpText{
 		Tagline:          "",
 		ShortDescription: "",
-		LongDescription:  "清除备份信息（测试用）",
+		LongDescription:  "",
 	},
 	Type: nil,
 }
@@ -789,7 +797,7 @@ var PeerCmd = &cmds.Command{
 		if err != nil {
 			return err
 		}
-		return res.Emit(peer)
+		return res.Emit([]model.CorePeer{peer})
 	},
 	Type: []model.CorePeer{},
 }

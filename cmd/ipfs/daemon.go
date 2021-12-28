@@ -542,124 +542,126 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 			return err
 		}
 		// 定时更新本节点存储的块数量
-		go func() {
-			// 重启更新节点地址
-			var addressList []string
-			addrss, err := peer.AddrInfoToP2pAddrs(host.InfoFromHost(node.PeerHost))
-			var s string
-			for _, addr := range addrss {
-				s = addr.String()
-				if !strings.Contains(s, "127.0.0.1") && !strings.Contains(s, "/::1/") {
-					addressList = append(addressList, s)
-				}
-			}
-			err = selector.UpdateAddress(addressList)
-			if err != nil {
-				log.Error(err)
-			}
-			fmt.Printf("更新节点地址成功\n")
-
-			tickerTime := defaultTickerTime
-			if cfg.ReportTime != 0 {
-				tickerTime = cfg.ReportTime
-			}
-			// todo 时间调整
-			ticker := time.NewTicker(time.Duration(tickerTime) * time.Second)
-			log.Infof("定时%v minutes汇报贡献", tickerTime)
-			preChallenge := ""
-			f := func() error {
-				// 获取当前所有的携程
-				log.Infof("当前携程数量%v", runtime.NumGoroutine())
-
-				start := time.Now().Nanosecond()
-				// 发送心跳,暂无必要
-				/*err = selector.Heartbeat()
-				if err != nil {
-					log.Error(err)
-				}*/
-				// 获取挑战值
-				challenge, err := selector.GetChallenge()
-				if err == standardConst.ChallengeError {
-					log.Error(err)
-				}
-				if err != nil {
-					return err
-				}
-				if challenge == preChallenge {
-					log.Infof("已发送当前挑战值")
-					return nil
-				}
-
-				challengeByte, err := base64.StdEncoding.DecodeString(challenge)
-				if err != nil {
-					return err
-				}
-
-				keysChan, _ := node.Blockstore.AllKeysChan(context.TODO())
-				mineral := model.IpfsMining{
-					Challenge: challenge,
-				}
-				max := 0
-				num := 0
-				fail := 0
-				// TODO 缓存cid进一个更方便查找的结构？暂时看起来性能是ok的
-				for c := range keysChan {
-					num++
-					hash := c.Hash()
-					decode, err := mh.Decode(hash)
-					if err != nil || decode.Length != 32 {
-						fail++
-						continue
-					}
-					temp := CommonPrefixLen(decode.Digest, challengeByte)
-					/*// 测试
-					for ; i < 10; i++ {
-						s2 := uuid.New().String()
-						fakeMining := model.IpfsMining{
-							Cid:         c.String(),
-							Hash:        base64.StdEncoding.EncodeToString(decode.Digest),
-							Address:     s2,
-							LeadingZero: temp,
-							Challenge:   challenge,
-						}
-						// 发送矿物
-						err = selector.Mining(fakeMining)
-						// todo 发送错误应当重新发送
-						if err != nil {
-							return err
-						}
-					}*/
-					if max < temp {
-						max = temp
-						mineral.Cid = c.String()
-						mineral.Hash = base64.StdEncoding.EncodeToString(decode.Digest)
+		if cfg.Mining {
+			go func() {
+				// 重启更新节点地址
+				var addressList []string
+				addrss, err := peer.AddrInfoToP2pAddrs(host.InfoFromHost(node.PeerHost))
+				var s string
+				for _, addr := range addrss {
+					s = addr.String()
+					if !strings.Contains(s, "127.0.0.1") && !strings.Contains(s, "/::1/") {
+						addressList = append(addressList, s)
 					}
 				}
-				mineral.LeadingZero = max
-				// 发送矿物
-				err = selector.Mining(mineral)
-				// todo 发送错误应当重新发送
+				err = selector.UpdateAddress(addressList)
 				if err != nil {
-					return err
+					log.Error(err)
 				}
-				preChallenge = challenge
-				log.Infof("mining结束，耗时：%vns,参与块数：%v块.失败：%v块，最佳cid为%v，前导零为%v\n", (time.Now().Nanosecond()-start)/int(time.Millisecond), num, fail, mineral.Cid, max)
-				return nil
-			}
-			// 启动时先执行一次
-			f()
-			for {
-				select {
-				case <-ticker.C:
-					err := f()
+				fmt.Printf("更新节点地址成功\n")
+
+				tickerTime := defaultTickerTime
+				if cfg.ReportTime != 0 {
+					tickerTime = cfg.ReportTime
+				}
+				// todo 时间调整
+				ticker := time.NewTicker(time.Duration(tickerTime) * time.Second)
+				log.Infof("定时%v minutes汇报贡献", tickerTime)
+				preChallenge := ""
+				f := func() error {
+					// 获取当前所有的携程
+					log.Infof("当前携程数量%v", runtime.NumGoroutine())
+
+					start := time.Now().Nanosecond()
+					// 发送心跳,暂无必要
+					/*err = selector.Heartbeat()
 					if err != nil {
 						log.Error(err)
+					}*/
+					// 获取挑战值
+					challenge, err := selector.GetChallenge()
+					if err == standardConst.ChallengeError {
+						log.Error(err)
 					}
-				case <-req.Context.Done():
-					break
+					if err != nil {
+						return err
+					}
+					if challenge == preChallenge {
+						log.Infof("已发送当前挑战值")
+						return nil
+					}
+
+					challengeByte, err := base64.StdEncoding.DecodeString(challenge)
+					if err != nil {
+						return err
+					}
+
+					keysChan, _ := node.Blockstore.AllKeysChan(context.TODO())
+					mineral := model.IpfsMining{
+						Challenge: challenge,
+					}
+					max := 0
+					num := 0
+					fail := 0
+					// TODO 缓存cid进一个更方便查找的结构？暂时看起来性能是ok的
+					for c := range keysChan {
+						num++
+						hash := c.Hash()
+						decode, err := mh.Decode(hash)
+						if err != nil || decode.Length != 32 {
+							fail++
+							continue
+						}
+						temp := CommonPrefixLen(decode.Digest, challengeByte)
+						/*// 测试
+						for ; i < 10; i++ {
+							s2 := uuid.New().String()
+							fakeMining := model.IpfsMining{
+								Cid:         c.String(),
+								Hash:        base64.StdEncoding.EncodeToString(decode.Digest),
+								Address:     s2,
+								LeadingZero: temp,
+								Challenge:   challenge,
+							}
+							// 发送矿物
+							err = selector.Mining(fakeMining)
+							// todo 发送错误应当重新发送
+							if err != nil {
+								return err
+							}
+						}*/
+						if max < temp {
+							max = temp
+							mineral.Cid = c.String()
+							mineral.Hash = base64.StdEncoding.EncodeToString(decode.Digest)
+						}
+					}
+					mineral.LeadingZero = max
+					// 发送矿物
+					err = selector.Mining(mineral)
+					// todo 发送错误应当重新发送
+					if err != nil {
+						return err
+					}
+					preChallenge = challenge
+					log.Infof("mining结束，耗时：%vns,参与块数：%v块.失败：%v块，最佳cid为%v，前导零为%v\n", (time.Now().Nanosecond()-start)/int(time.Millisecond), num, fail, mineral.Cid, max)
+					return nil
 				}
-			}
-		}()
+				// 启动时先执行一次
+				f()
+				for {
+					select {
+					case <-ticker.C:
+						err := f()
+						if err != nil {
+							log.Error(err)
+						}
+					case <-req.Context.Done():
+						break
+					}
+				}
+			}()
+		}
 	}
 
 	// Give the user heads up if daemon running in online mode has no peers after 1 minute
