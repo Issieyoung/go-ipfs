@@ -187,7 +187,7 @@ only-hash, and progress/status related flags) will change the final hash.
 		cmds.BoolOption(inlineOptionName, "Inline small blocks into CIDs. (experimental)"),
 		cmds.IntOption(inlineLimitOptionName, "Maximum block size to inline. (experimental)").WithDefault(32),
 		cmds.IntOption(fileStoreDays, "how many days you want to store in blockchain").WithDefault(30),
-		cmds.StringOption(ownerAddress, ""),
+		cmds.StringOption(ownerAddress, "file owner").WithDefault(""),
 	},
 	PreRun: func(req *cmds.Request, env cmds.Environment) error {
 		quiet, _ := req.Options[quietOptionName].(bool)
@@ -262,7 +262,6 @@ only-hash, and progress/status related flags) will change the final hash.
 		inlineLimit, _ := req.Options[inlineLimitOptionName].(int)
 		b := req.Options[privateOptionName].(bool)
 		days := req.Options[fileStoreDays].(int)
-		fmt.Println(days)
 
 		if b {
 			cidVerSet = true
