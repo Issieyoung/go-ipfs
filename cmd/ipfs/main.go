@@ -91,7 +91,6 @@ func mainRet() int {
 
 	intrh, ctx := util.SetupInterruptHandler(ctx)
 	defer intrh.Close()
-
 	// Handle `ipfs version` or `ipfs help`
 	if len(os.Args) > 1 {
 		// Handle `ipfs --version'
@@ -119,8 +118,6 @@ func mainRet() int {
 	// output depends on executable name passed in os.Args
 	// so we need to make sure it's stable
 	os.Args[0] = "ipfs"
-	// run daemon for debug
-	os.Args = append(os.Args, "daemon")
 
 	buildEnv := func(ctx context.Context, req *cmds.Request) (cmds.Environment, error) {
 		checkDebug(req)
