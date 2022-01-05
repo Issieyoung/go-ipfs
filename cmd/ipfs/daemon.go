@@ -581,7 +581,7 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 					// 获取挑战值
 					challenge, err := selector.GetChallenge()
 					if err == standardConst.ChallengeError {
-						log.Error(err)
+						log.Info(err)
 					}
 					if err != nil {
 						return err

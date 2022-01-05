@@ -68,6 +68,7 @@ func loadPlugins(repoPath string) (*loader.PluginLoader, error) {
 // - output the response
 // - if anything fails, print error, maybe with help
 func main() {
+	//fmt.Printf("debug文件路径：%v\n",os.Args[0])
 	os.Exit(mainRet())
 }
 
