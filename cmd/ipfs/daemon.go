@@ -6,9 +6,12 @@ import (
 	"errors"
 	_ "expvar"
 	"fmt"
+	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-ipfs-auth/selector"
 	"github.com/ipfs/go-ipfs-auth/standard/model"
 	"github.com/ipfs/go-ipfs-auth/standard/standardConst"
+	coreiface "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	mh "github.com/multiformats/go-multihash"
@@ -569,8 +572,6 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 				log.Infof("定时%v minutes汇报贡献", tickerTime)
 				preChallenge := ""
 				f := func() error {
-					// 获取当前所有的携程
-					log.Infof("当前携程数量%v", runtime.NumGoroutine())
 
 					start := time.Now().Nanosecond()
 					// 发送心跳,暂无必要
@@ -653,6 +654,34 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 					select {
 					case <-ticker.C:
 						err := f()
+						if err != nil {
+							log.Error(err)
+						}
+					case <-req.Context.Done():
+						break
+					}
+				}
+			}()
+
+			go func() {
+				tickerTime := defaultTickerTime
+
+				// todo 新的配置项
+				if cfg.PullNewFileTime != 0 {
+					tickerTime = cfg.PullNewFileTime
+				}
+				// todo 时间调整
+				ticker := time.NewTicker(time.Duration(tickerTime) * time.Minute)
+
+				api, err := coreapi.NewCoreAPI(node)
+				if err != nil {
+					log.Errorf("failed to access CoreAPI: %v", err)
+				}
+				getNewFile(req.Context, node.Repo.Datastore(), api)
+				for {
+					select {
+					case <-ticker.C:
+						err := getNewFile(req.Context, node.Repo.Datastore(), api)
 						if err != nil {
 							log.Error(err)
 						}
@@ -1059,4 +1088,35 @@ func printVersion() {
 	fmt.Printf("Repo version: %d\n", fsrepo.RepoVersion)
 	fmt.Printf("System version: %s\n", runtime.GOARCH+"/"+runtime.GOOS)
 	fmt.Printf("Golang version: %s\n", runtime.Version())
+}
+
+const fileExistKey = "fileExist/"
+
+func getNewFile(ctx context.Context, ds datastore.Datastore, api coreiface.CoreAPI) error {
+	// 拉取链上文件列表
+	fileList, err := selector.GetFileList(0)
+	if err != nil {
+		return err
+	}
+	// 取出新增文件列表（本地不存在的文件）
+	for _, s := range fileList {
+		key := datastore.NewKey(fileExistKey + s)
+		_, err := ds.Get(key)
+		if err == datastore.ErrNotFound {
+			// 拉取文件
+			p := path.New(s)
+			_, err = api.Unixfs().Get(ctx, p)
+			if err != nil {
+				log.Error(err)
+			}
+			// 记录信息
+			err = ds.Put(key, []byte{1})
+			if err != nil {
+				log.Error(err)
+			}
+		} else if err != nil {
+			log.Error(err)
+		}
+	}
+	return nil
 }
