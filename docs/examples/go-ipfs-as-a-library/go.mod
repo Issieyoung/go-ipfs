@@ -12,4 +12,16 @@ require (
 	github.com/multiformats/go-multiaddr v0.2.2
 )
 
-replace github.com/ipfs/go-ipfs => ./../../..
+replace (
+	github.com/ipfs/go-bitswap => ../../../../go-bitswap
+	github.com/ipfs/go-cid => ../../../../ipld/cid/go-cid
+	github.com/ipfs/go-ipfs-auth/auth-source-eth => ../../../../go-ipfs-auth/auth-source-eth
+	github.com/ipfs/go-ipfs-auth/selector => ../../../../go-ipfs-auth/selector
+	github.com/ipfs/go-ipfs-auth/standard => ../../../../go-ipfs-auth/standard
+	github.com/ipfs/go-ipfs-backup => ../../../../go-ipfs-backup
+	github.com/ipfs/go-ipfs-chunker => ../../../../go-ipfs-chunker
+	github.com/ipfs/go-merkledag => ../../../../ipld/go-ipld-merkledag
+	github.com/ipfs/go-peertaskqueue => ../../../../go-peertaskqueue
+	github.com/ipfs/go-unixfs => ../../../../go-unixfs
+    github.com/ipfs/go-ipfs => ./../../..
+)
