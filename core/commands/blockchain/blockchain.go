@@ -18,6 +18,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -753,6 +754,14 @@ var InitPeerCmd = &cmds.Command{
 	Type: model.CorePeer{},
 }
 
+var GCCmd = &cmds.Command{
+	Run: func(req *cmds.Request, res cmds.ResponseEmitter, env cmds.Environment) error {
+		runtime.GC()
+		return res.Emit("GC success")
+	},
+	Type: model.CorePeer{},
+}
+
 const (
 	peerId = "peerId"
 	number = "num"
@@ -763,6 +772,7 @@ var PeerCmd = &cmds.Command{
 	Arguments: nil,
 	Subcommands: map[string]*cmds.Command{
 		"init": InitPeerCmd,
+		"GC":   GCCmd,
 	},
 	Options: []cmds.Option{
 		cmds.StringOption(peerId, "pid", "查询节点的id，不填代表查询本节点").WithDefault(""),

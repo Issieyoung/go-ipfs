@@ -217,6 +217,9 @@ func defaultMux(path string) corehttp.ServeOption {
 }
 
 func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment) (_err error) {
+	go func() {
+		fmt.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 	// Inject metrics before we do anything
 	err := mprome.Inject()
 	if err != nil {
@@ -614,23 +617,7 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 							continue
 						}
 						temp := CommonPrefixLen(decode.Digest, challengeByte)
-						/*// 测试
-						for ; i < 10; i++ {
-							s2 := uuid.New().String()
-							fakeMining := model.IpfsMining{
-								Cid:         c.String(),
-								Hash:        base64.StdEncoding.EncodeToString(decode.Digest),
-								Address:     s2,
-								LeadingZero: temp,
-								Challenge:   challenge,
-							}
-							// 发送矿物
-							err = selector.Mining(fakeMining)
-							// todo 发送错误应当重新发送
-							if err != nil {
-								return err
-							}
-						}*/
+
 						if max < temp {
 							max = temp
 							mineral.Cid = c.String()
