@@ -759,7 +759,6 @@ var GCCmd = &cmds.Command{
 		runtime.GC()
 		return res.Emit("GC success")
 	},
-	Type: model.CorePeer{},
 }
 
 const (
