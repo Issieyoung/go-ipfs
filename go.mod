@@ -19,7 +19,7 @@ require (
 	github.com/ipfs/go-blockservice v0.1.7
 	github.com/ipfs/go-cid v0.0.7
 	github.com/ipfs/go-cidutil v0.0.2
-	github.com/ipfs/go-datastore v0.4.5
+	github.com/ipfs/go-datastore v0.5.0
 	github.com/ipfs/go-detect-race v0.0.1
 	github.com/ipfs/go-ds-badger v0.2.6
 	github.com/ipfs/go-ds-flatfs v0.4.5
@@ -31,7 +31,7 @@ require (
 	github.com/ipfs/go-ipfs-auth/selector v0.0.0
 	github.com/ipfs/go-ipfs-auth/standard v0.0.0
 	github.com/ipfs/go-ipfs-backup v0.0.0
-	github.com/ipfs/go-ipfs-blockstore v0.1.6
+	github.com/ipfs/go-ipfs-blockstore v1.1.2
 	github.com/ipfs/go-ipfs-chunker v0.0.5
 	github.com/ipfs/go-ipfs-cmds v0.6.0
 	github.com/ipfs/go-ipfs-config v0.14.0
