@@ -110,14 +110,21 @@ require (
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912
+	github.com/pefish/go-blkchain-merkle-tree latest
 )
 
 go 1.15
 
 replace (
-	github.com/bdengine/go-ipfs-blockchain-eth => github.com/bdengine/go-ipfs-blockchain-eth v0.0.4
-	github.com/bdengine/go-ipfs-blockchain-selector => github.com/bdengine/go-ipfs-blockchain-selector v0.0.4
-	github.com/bdengine/go-ipfs-blockchain-standard => github.com/bdengine/go-ipfs-blockchain-standard v0.0.2
+	github.com/bdengine/go-ipfs-blockchain-eth => ../go-ipfs-blockchain-eth
+    github.com/bdengine/go-ipfs-blockchain-selector => ../go-ipfs-blockchain-selector
+    github.com/bdengine/go-ipfs-blockchain-standard => ../go-ipfs-blockchain-standard
+)
+
+replace (
+	//github.com/bdengine/go-ipfs-blockchain-eth => github.com/bdengine/go-ipfs-blockchain-eth v0.0.4
+	//github.com/bdengine/go-ipfs-blockchain-selector => github.com/bdengine/go-ipfs-blockchain-selector v0.0.4
+	//github.com/bdengine/go-ipfs-blockchain-standard => github.com/bdengine/go-ipfs-blockchain-standard v0.0.2
 	github.com/ipfs/go-bitswap => github.com/bdengine/go-bitswap v1.0.3
 	github.com/ipfs/go-cid => github.com/bdengine/go-cid v0.0.2
 	github.com/ipfs/go-ipfs-chunker => github.com/bdengine/go-ipfs-chunker v0.0.3

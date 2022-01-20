@@ -9,9 +9,7 @@ import (
 	selector "github.com/bdengine/go-ipfs-blockchain-selector"
 	"github.com/bdengine/go-ipfs-blockchain-standard/model"
 	"github.com/bdengine/go-ipfs-blockchain-standard/standardConst"
-	"github.com/ipfs/go-datastore"
-	coreiface "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/ipfs/go-ipfs/mine"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	mh "github.com/multiformats/go-multihash"
@@ -664,11 +662,11 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 				if err != nil {
 					log.Errorf("failed to access CoreAPI: %v", err)
 				}
-				getNewFile(req.Context, node.Repo.Datastore(), api)
+				mine.GetNewFile(req.Context, node.Repo.Datastore(), api)
 				for {
 					select {
 					case <-ticker.C:
-						err := getNewFile(req.Context, node.Repo.Datastore(), api)
+						err := mine.GetNewFile(req.Context, node.Repo.Datastore(), api)
 						if err != nil {
 							log.Error(err)
 						}
@@ -1077,33 +1075,4 @@ func printVersion() {
 	fmt.Printf("Golang version: %s\n", runtime.Version())
 }
 
-const fileExistKey = "fileExist/"
 
-func getNewFile(ctx context.Context, ds datastore.Datastore, api coreiface.CoreAPI) error {
-	// 拉取链上文件列表
-	fileList, err := selector.GetFileList(0)
-	if err != nil {
-		return err
-	}
-	// 取出新增文件列表（本地不存在的文件）
-	for _, s := range fileList {
-		key := datastore.NewKey(fileExistKey + s)
-		_, err := ds.Get(key)
-		if err == datastore.ErrNotFound {
-			// 拉取文件
-			p := path.New(s)
-			_, err = api.Unixfs().Get(ctx, p)
-			if err != nil {
-				log.Error(err)
-			}
-			// 记录信息
-			err = ds.Put(key, []byte{1})
-			if err != nil {
-				log.Error(err)
-			}
-		} else if err != nil {
-			log.Error(err)
-		}
-	}
-	return nil
-}
