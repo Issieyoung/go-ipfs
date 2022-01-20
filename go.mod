@@ -4,6 +4,8 @@ require (
 	bazil.org/fuse v0.0.0-20200117225306-7b5117fecadc
 	contrib.go.opencensus.io/exporter/prometheus v0.3.0
 	github.com/Hyperledger-TWGC/tjfoc-gm v1.4.0
+	github.com/bdengine/go-ipfs-blockchain-selector v0.0.4
+	github.com/bdengine/go-ipfs-blockchain-standard v0.0.2
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cheggaaa/pb v1.0.29
 	github.com/coreos/go-systemd/v22 v22.3.1
@@ -28,9 +30,6 @@ require (
 	github.com/ipfs/go-filestore v0.0.3
 	github.com/ipfs/go-fs-lock v0.0.6
 	github.com/ipfs/go-graphsync v0.8.0
-	github.com/bdengine/go-ipfs-blockchain-selector v0.0.2
-	github.com/bdengine/go-ipfs-blockchain-standard v0.0.1
-	github.com/ipfs/go-ipfs-backup v0.0.1
 	github.com/ipfs/go-ipfs-blockstore v0.1.6
 	github.com/ipfs/go-ipfs-chunker v0.0.5
 	github.com/ipfs/go-ipfs-cmds v0.6.0
@@ -116,27 +115,14 @@ require (
 go 1.15
 
 replace (
-	github.com/ipfs/go-bitswap => github.com/ipfs/go-bitswap v0.0.1
-    github.com/ipfs/go-cid => ../ipld/cid/go-cid
-    github.com/bdengine/go-ipfs-blockchain-eth => ../go-ipfs-auth/auth-source-eth
-    github.com/bdengine/go-ipfs-blockchain-selector => ../go-ipfs-auth/selector
-    github.com/bdengine/go-ipfs-blockchain-standard => ../go-ipfs-auth/standard
-    github.com/ipfs/go-ipfs-backup => ../go-ipfs-backup
-    github.com/ipfs/go-ipfs-chunker => ../go-ipfs-chunker
-    github.com/ipfs/go-merkledag => ../ipld/go-ipld-merkledag
-    github.com/ipfs/go-peertaskqueue => ../go-peertaskqueue
-    github.com/ipfs/go-unixfs => ../go-unixfs
-)
-
-replace (
-	//github.com/ipfs/go-bitswap => ../go-bitswap
-	github.com/ipfs/go-cid => ../ipld/cid/go-cid
-	github.com/bdengine/go-ipfs-blockchain-eth => ../go-ipfs-auth/auth-source-eth
-	github.com/bdengine/go-ipfs-blockchain-selector => ../go-ipfs-auth/selector
-	github.com/bdengine/go-ipfs-blockchain-standard => ../go-ipfs-auth/standard
-	github.com/ipfs/go-ipfs-backup => ../go-ipfs-backup
-	github.com/ipfs/go-ipfs-chunker => ../go-ipfs-chunker
-	github.com/ipfs/go-merkledag => ../ipld/go-ipld-merkledag
-	github.com/ipfs/go-peertaskqueue => ../go-peertaskqueue
-	github.com/ipfs/go-unixfs => ../go-unixfs
+	github.com/bdengine/go-ipfs-blockchain-eth => github.com/bdengine/go-ipfs-blockchain-eth v0.0.4
+	github.com/bdengine/go-ipfs-blockchain-selector => github.com/bdengine/go-ipfs-blockchain-selector v0.0.4
+	github.com/bdengine/go-ipfs-blockchain-standard => github.com/bdengine/go-ipfs-blockchain-standard v0.0.2
+	github.com/ipfs/go-bitswap => github.com/bdengine/go-bitswap v1.0.3
+	github.com/ipfs/go-cid => github.com/bdengine/go-cid v0.0.2
+	github.com/ipfs/go-ipfs-chunker => github.com/bdengine/go-ipfs-chunker v0.0.3
+	github.com/ipfs/go-ipfs-config => github.com/bdengine/go-ipfs-config v1.0.2
+	github.com/ipfs/go-merkledag => github.com/bdengine/go-merkledag v1.0.2
+	github.com/ipfs/go-peertaskqueue => github.com/bdengine/go-peertaskqueue v0.0.2
+	github.com/ipfs/go-unixfs => github.com/bdengine/go-unixfs v0.0.2
 )

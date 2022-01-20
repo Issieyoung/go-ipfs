@@ -14,13 +14,12 @@ require (
 
 replace (
 	github.com/ipfs/go-bitswap => ../../../../go-bitswap
-	github.com/ipfs/go-cid => ../../../../ipld/cid/go-cid
-	github.com/bdengine/go-ipfs-blockchain-eth => ../../../../go-ipfs-auth/auth-source-eth
-	github.com/bdengine/go-ipfs-blockchain-selector => ../../../../go-ipfs-auth/selector
-	github.com/bdengine/go-ipfs-blockchain-standard => ../../../../go-ipfs-auth/standard
-	github.com/ipfs/go-ipfs-backup => ../../../../go-ipfs-backup
+	github.com/ipfs/go-cid => ../../../../go-cid
+	github.com/bdengine/go-ipfs-blockchain-eth => ../../../../go-ipfs-blockchain-eth
+	github.com/bdengine/go-ipfs-blockchain-selector => ../../../../go-ipfs-blockchain-selector
+	github.com/bdengine/go-ipfs-blockchain-standard => ../../../../go-ipfs-blockchain-standard
 	github.com/ipfs/go-ipfs-chunker => ../../../../go-ipfs-chunker
-	github.com/ipfs/go-merkledag => ../../../../ipld/go-ipld-merkledag
+	github.com/ipfs/go-merkledag => ../../../../go-merkledag
 	github.com/ipfs/go-peertaskqueue => ../../../../go-peertaskqueue
 	github.com/ipfs/go-unixfs => ../../../../go-unixfs
     github.com/ipfs/go-ipfs => ./../../..
