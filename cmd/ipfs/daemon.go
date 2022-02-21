@@ -9,6 +9,7 @@ import (
 	selector "github.com/bdengine/go-ipfs-blockchain-selector"
 	"github.com/bdengine/go-ipfs-blockchain-standard/model"
 	"github.com/bdengine/go-ipfs-blockchain-standard/standardConst"
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-ipfs/mine"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -732,6 +733,15 @@ func CommonPrefixLen(a, b []byte) int {
 	return 32 * 8
 }
 
+func GetCidHash(c cid.Cid) ([]byte, error) {
+	hash := c.Hash()
+	decode, err := mh.Decode(hash)
+	if err != nil || decode.Length != 32 {
+		return nil, err
+	}
+	return decode.Digest, nil
+}
+
 // serveHTTPApi collects options, creates listener, prints status message and starts serving requests
 func serveHTTPApi(req *cmds.Request, cctx *oldcmds.Context) (<-chan error, error) {
 	cfg, err := cctx.GetConfig()
@@ -1074,5 +1084,3 @@ func printVersion() {
 	fmt.Printf("System version: %s\n", runtime.GOARCH+"/"+runtime.GOOS)
 	fmt.Printf("Golang version: %s\n", runtime.Version())
 }
-
-

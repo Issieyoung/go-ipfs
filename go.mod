@@ -96,6 +96,7 @@ require (
 	github.com/multiformats/go-multibase v0.0.3
 	github.com/multiformats/go-multihash v0.0.15
 	github.com/opentracing/opentracing-go v1.2.0
+	github.com/pefish/go-blkchain-merkle-tree v0.0.0-20200318093048-9b8e1d3c84f0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.10.0
 	github.com/prometheus/common v0.18.0
@@ -110,15 +111,16 @@ require (
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912
-	github.com/pefish/go-blkchain-merkle-tree latest
 )
 
 go 1.15
 
 replace (
 	github.com/bdengine/go-ipfs-blockchain-eth => ../go-ipfs-blockchain-eth
-    github.com/bdengine/go-ipfs-blockchain-selector => ../go-ipfs-blockchain-selector
-    github.com/bdengine/go-ipfs-blockchain-standard => ../go-ipfs-blockchain-standard
+	github.com/bdengine/go-ipfs-blockchain-selector => ../go-ipfs-blockchain-selector
+	github.com/bdengine/go-ipfs-blockchain-standard => ../go-ipfs-blockchain-standard
+	github.com/ipfs/go-cid => ../go-cid
+	github.com/ipfs/go-ipfs-config => ../go-ipfs-config
 )
 
 replace (
@@ -126,9 +128,9 @@ replace (
 	//github.com/bdengine/go-ipfs-blockchain-selector => github.com/bdengine/go-ipfs-blockchain-selector v0.0.4
 	//github.com/bdengine/go-ipfs-blockchain-standard => github.com/bdengine/go-ipfs-blockchain-standard v0.0.2
 	github.com/ipfs/go-bitswap => github.com/bdengine/go-bitswap v1.0.3
-	github.com/ipfs/go-cid => github.com/bdengine/go-cid v0.0.2
+	//github.com/ipfs/go-cid => github.com/bdengine/go-cid v0.0.2
 	github.com/ipfs/go-ipfs-chunker => github.com/bdengine/go-ipfs-chunker v0.0.3
-	github.com/ipfs/go-ipfs-config => github.com/bdengine/go-ipfs-config v1.0.2
+	//github.com/ipfs/go-ipfs-config => github.com/bdengine/go-ipfs-config v1.0.2
 	github.com/ipfs/go-merkledag => github.com/bdengine/go-merkledag v1.0.2
 	github.com/ipfs/go-peertaskqueue => github.com/bdengine/go-peertaskqueue v0.0.2
 	github.com/ipfs/go-unixfs => github.com/bdengine/go-unixfs v0.0.2
