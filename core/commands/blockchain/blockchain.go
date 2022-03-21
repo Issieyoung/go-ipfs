@@ -1,15 +1,12 @@
 package blockchain
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"github.com/bdengine/go-ipfs-blockchain-selector"
 	"github.com/bdengine/go-ipfs-blockchain-standard/model"
-	"github.com/ipfs/go-bitswap/allocate"
 	"github.com/ipfs/go-bitswap/backup"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-ipfs/core/commands/cmdenv"
 	"github.com/ipfs/go-ipfs/util"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -28,6 +25,7 @@ import (
 	files "github.com/ipfs/go-ipfs-files"
 	coreiface "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
+	cpath "github.com/ipfs/interface-go-ipfs-core/path"
 	mh "github.com/multiformats/go-multihash"
 )
 
@@ -216,8 +214,9 @@ only-hash, and progress/status related flags) will change the final hash.
 			return err
 		}
 
+		// 暂时取消主动备份
 		// 提前检查网络状态
-		setting := allocate.Setting{
+		/*setting := allocate.Setting{
 			Strategy:  0,
 			TargetNum: 1,
 		}
@@ -231,15 +230,15 @@ only-hash, and progress/status related flags) will change the final hash.
 		}
 		if cfg.BackupNum > 0 {
 			setting.TargetNum = cfg.BackupNum
-		}
+		}*/
 
-		peerList, err := getReliablePeer(req.Context, node, api, 10)
+		/*peerList, err := getReliablePeer(req.Context, node, api, 10)
 		if err != nil {
 			return err
 		}
 		if len(peerList) < setting.TargetNum {
 			return fmt.Errorf("在线节点数不满足备份条件")
-		}
+		}*/
 
 		owner := req.Options[ownerAddress].(string)
 		if owner != "" && owner != "self" {
@@ -324,11 +323,11 @@ only-hash, and progress/status related flags) will change the final hash.
 			errCh := make(chan error, 1)
 			events := make(chan interface{}, adderOutChanSize)
 			opts[len(opts)-1] = options.Unixfs.Events(events)
-
+			var p cpath.Resolved
 			go func() {
 				var err error
 				defer close(events)
-				_, err = api.Unixfs().Add(req.Context, addit.Node(), opts...)
+				p, err = api.Unixfs().Add(req.Context, addit.Node(), opts...)
 				errCh <- err
 			}()
 
@@ -347,7 +346,15 @@ only-hash, and progress/status related flags) will change the final hash.
 				} else {
 					output.Name = path.Join(addit.Name(), output.Name)
 				}
-
+				if err := <-errCh; err != nil {
+					return err
+				}
+				if output.Size == "" {
+					output.Size = strconv.Itoa(int(output.Bytes))
+				}
+				if h == "" {
+					h = p.Cid().String()
+				}
 				// 分发给随机peer
 				uid, err := util.GetUUIDString()
 				if err != nil {
@@ -359,6 +366,16 @@ only-hash, and progress/status related flags) will change the final hash.
 				if s1%1024 != 0 {
 					s += 1
 				}
+				// 分片查询
+				parse, err := cid.Parse(h)
+				if err != nil {
+					return err
+				}
+				bl, err := CidGet(req.Context, api, parse, true)
+				if err != nil {
+					return err
+				}
+
 				// 链上文件信息记录  暂时不需要
 				err = selector.AddFile(model.IpfsFileInfo{
 					Cid:       h,
@@ -366,13 +383,15 @@ only-hash, and progress/status related flags) will change the final hash.
 					State:     0,
 					Size:      int64(s),
 					StoreDays: int64(days),
+					SliceNum:  int64(len(bl)),
 					Owner:     owner,
 				})
 				if err != nil {
 					return err
 				}
 
-				backupInfo := "备份运行中"
+				// TODO 暂时取消主动备份
+				/*backupInfo := "备份运行中"
 				_, err = backup.GetFileBackupInfo(node.Repo.Datastore(), h)
 				if err == datastore.ErrNotFound {
 					// TODO 是否要等待分发任务结果再返回
@@ -414,23 +433,20 @@ only-hash, and progress/status related flags) will change the final hash.
 					}
 				} else {
 					backupInfo = "文件已有备份"
-				}
+				}*/
 
 				if err := res.Emit(&AddEvent{
-					Name:   output.Name,
-					Hash:   h,
-					Bytes:  output.Bytes,
-					Size:   output.Size,
-					Time:   time.Now().UnixNano() - startTime,
-					Backup: backupInfo,
+					Name:  output.Name,
+					Hash:  h,
+					Bytes: output.Bytes,
+					Size:  output.Size,
+					Time:  time.Now().UnixNano() - startTime,
+					//Backup: backupInfo,
 				}); err != nil {
 					return err
 				}
 			}
 
-			if err := <-errCh; err != nil {
-				return err
-			}
 			added++
 		}
 
@@ -772,6 +788,7 @@ var PeerCmd = &cmds.Command{
 	Subcommands: map[string]*cmds.Command{
 		"init": InitPeerCmd,
 		"GC":   GCCmd,
+		// todo 手动更新地址
 	},
 	Options: []cmds.Option{
 		cmds.StringOption(peerId, "pid", "查询节点的id，不填代表查询本节点").WithDefault(""),

@@ -1,4 +1,4 @@
-package mine
+package mining
 
 import (
 	"github.com/ipfs/go-cid"
@@ -19,32 +19,9 @@ func NewKBucket() Bucket {
 	return k
 }
 
-func (k Bucket) Add(c cid.Cid) Certifier {
-	i := getHash(c)[0]
-	if k[i] == nil {
-		k[i] = SortList{}
-	}
-	k[i] = k[i].Add(c)
-	k[i].Sort()
-	return k
-}
-
 func (k Bucket) Search(b []byte) (j cid.Cid) {
 	j = k[b[0]].Search(b)
 	return
-}
-
-func (k Bucket) Construct(cl ...cid.Cid) Certifier {
-	for _, c := range cl {
-		one := getHash(c)[0]
-		if k[one] == nil {
-			k[one] = SortList{}
-		}
-		a := k[one].Construct(c)
-		k[one] = a
-	}
-	k.Sort()
-	return k
 }
 
 func (k Bucket) Size() int {

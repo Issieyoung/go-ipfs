@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-func BlockGetRecursive(ctx context.Context, api coreiface.CoreAPI, cid cid.Cid) ([]blocks.Block, error) {
+/*func BlockGetRecursive(ctx context.Context, api coreiface.CoreAPI, cid cid.Cid) ([]blocks.Block, error) {
 	var blockList []blocks.Block
 	obj, err := api.Dag().Get(ctx, cid)
 	if err != nil {
@@ -40,27 +40,59 @@ func BlockGetRecursive(ctx context.Context, api coreiface.CoreAPI, cid cid.Cid) 
 		}
 	}
 	return blockList, nil
+}*/
+
+// BlockGetRecursive 比直接递归开销更小
+func BlockGetRecursive(ctx context.Context, api coreiface.CoreAPI, cid1 cid.Cid) ([]blocks.Block, error) {
+	var blockList []blocks.Block
+	var f func(c cid.Cid) error
+	f = func(c cid.Cid) error {
+		obj, err := api.Dag().Get(ctx, c)
+		if err != nil {
+			return err
+		}
+		blockList = append(blockList, obj)
+		for _, link := range obj.Links() {
+			err := f(link.Cid)
+			if err != nil {
+				continue
+			}
+		}
+		return nil
+	}
+	err := f(cid1)
+	if err != nil {
+		return nil, err
+	}
+	return blockList, nil
 }
 
-func CidGet(ctx context.Context, api coreiface.CoreAPI, cid cid.Cid, reFlag bool) ([]string, error) {
+func CidGet(ctx context.Context, api coreiface.CoreAPI, cid1 cid.Cid, reFlag bool) ([]string, error) {
 	var cidList []string
-	cidList = append(cidList, cid.String())
+	cidList = append(cidList, cid1.String())
 	if !reFlag {
 		return cidList, nil
 	}
-	obj, err := api.Dag().Get(ctx, cid)
-	if err != nil {
-		return cidList, err
-	}
-	links := obj.Links()
-	if len(links) != 0 {
-		for _, link := range links {
-			b, err := CidGet(ctx, api, link.Cid, reFlag)
-			if err != nil {
-				return cidList, err
-			}
-			cidList = append(cidList, b...)
+	var f func(c cid.Cid) error
+	f = func(c cid.Cid) error {
+		obj, err := api.Dag().Get(ctx, c)
+		if err != nil {
+			return err
 		}
+		if len(obj.Links()) != 0 {
+			for _, link := range obj.Links() {
+				cidList = append(cidList, link.Cid.String())
+				err = f(link.Cid)
+				if err != nil {
+					continue
+				}
+			}
+		}
+		return nil
+	}
+	err := f(cid1)
+	if err != nil {
+		return nil, err
 	}
 	return cidList, nil
 }

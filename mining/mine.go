@@ -1,8 +1,9 @@
-package mine
+package mining
 
 import (
 	"context"
 	selector "github.com/bdengine/go-ipfs-blockchain-selector"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	logging "github.com/ipfs/go-log"
@@ -33,21 +34,41 @@ func GetValidFileList() ([]cid.Cid, error) {
 	return cidList, nil
 }
 
+func BlockGetRecursive(ctx context.Context, api coreiface.CoreAPI, cid cid.Cid) ([]blocks.Block, error) {
+	var blockList []blocks.Block
+	obj, err := api.Dag().Get(ctx, cid)
+	if err != nil {
+		return blockList, err
+	}
+	blockList = append(blockList, obj)
+	links := obj.Links()
+	if len(links) != 0 {
+		for _, link := range links {
+			b, err := BlockGetRecursive(ctx, api, link.Cid)
+			if err != nil {
+				return blockList, err
+			}
+			blockList = append(blockList, b...)
+		}
+	}
+	return blockList, nil
+}
+
 // 递归的构建dag结构
 func dagGetRecursive(ctx context.Context, api coreiface.CoreAPI, c cid.Cid) ([]cid.Cid, error) {
 	res := []cid.Cid{c}
 
-	var recursiveFunc func(coreiface.CoreAPI, cid.Cid) error
+	var recursiveFunc func(cid.Cid) error
 
-	recursiveFunc = func(a coreiface.CoreAPI, ci cid.Cid) error {
-		obj, err := api.Dag().Get(ctx, c)
+	recursiveFunc = func(ci cid.Cid) error {
+		obj, err := api.Dag().Get(ctx, ci)
 		if err != nil {
 			return err
 		}
 		if len(obj.Links()) > 0 {
 			for _, link := range obj.Links() {
 				res = append(res, link.Cid)
-				err = recursiveFunc(a, link.Cid)
+				err = recursiveFunc(link.Cid)
 				if err != nil {
 					return err
 				}
@@ -55,12 +76,12 @@ func dagGetRecursive(ctx context.Context, api coreiface.CoreAPI, c cid.Cid) ([]c
 		}
 		return nil
 	}
-	err := recursiveFunc(api, c)
+	err := recursiveFunc(c)
 	if err != nil {
 		return nil, err
 	}
 
-	return res, recursiveFunc(api, c)
+	return res, nil
 }
 
 //GetNewFile 维护链上有效文件所有文件片的有序列表

@@ -1,28 +1,17 @@
 package main
 
 import (
-	"context"
-	"encoding/base64"
 	"errors"
 	_ "expvar"
 	"fmt"
 	selector "github.com/bdengine/go-ipfs-blockchain-selector"
-	"github.com/bdengine/go-ipfs-blockchain-standard/model"
-	"github.com/bdengine/go-ipfs-blockchain-standard/standardConst"
-	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-ipfs/mine"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
-	mh "github.com/multiformats/go-multihash"
 	"io/ioutil"
-	"math/bits"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -535,147 +524,55 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 	}
 
 	if cfg.Source != "" {
-		// 区块链相关初始化   TODO 依赖注入
-		_, peers, err := selector.Daemon(cctx.ConfigRoot, cfg.Source, cfg.Identity.PeerID)
+		// 区块链服务初始化   TODO 依赖注入
+		_, peers, announceAddr, err := selector.Daemon(cctx.ConfigRoot, cfg.Source, cfg.Identity.PeerID)
 		if err != nil {
 			return err
 		}
-
-		//node.BlockchainAPI = blockchainAPI
+		// 更新引导节点
 		_, err = commands.BootstrapReplace(repo, cfg, peers)
 		if err != nil {
 			return err
 		}
-		// 定时更新本节点存储的块数量
+		// 链上更新本节点地址
+		go func() {
+			var err error
+			if announceAddr == nil {
+				err = updateAddressAuto(node)
+				if err != nil {
+					fmt.Printf("更新节点地址失败：%v", err)
+				}
+				return
+			}
+			err = updateAddress(announceAddr)
+			if err != nil {
+				fmt.Printf("更新节点地址失败：%v\n", err)
+				return
+			}
+			fmt.Printf("更新节点地址成功：%v\n", announceAddr)
+		}()
 		if cfg.Mining {
+			// 检查本节点是否存在链上身份，
+			/*_, err := selector.GetPeer(node.Identity.String())
+			if err != nil {
+				return err
+			}*/
+			// 如果不存在，初始化链上身份
+
+			// 初始化cidTree
 			go func() {
-				// 重启更新节点地址
-				var addressList []string
-				addrss, err := peer.AddrInfoToP2pAddrs(host.InfoFromHost(node.PeerHost))
-				var s string
-				for _, addr := range addrss {
-					s = addr.String()
-					if !strings.Contains(s, "127.0.0.1") && !strings.Contains(s, "/::1/") {
-						addressList = append(addressList, s)
-					}
+				err := initCTree(req.Context, node)
+				for err != nil {
+					// 记录  稍后再次尝试
+					fmt.Printf("初始化激励服务失败:%v，稍后重试\n", err)
+					time.Sleep(30 * time.Second)
+					err = initCTree(req.Context, node)
 				}
-				err = selector.UpdateAddress(addressList)
-				if err != nil {
-					log.Error(err)
-				}
-				fmt.Printf("更新节点地址成功\n")
-
-				tickerTime := defaultTickerTime
-				if cfg.ReportTime != 0 {
-					tickerTime = cfg.ReportTime
-				}
-				// todo 时间调整
-				ticker := time.NewTicker(time.Duration(tickerTime) * time.Second)
-				log.Infof("定时%v minutes汇报贡献", tickerTime)
-				preChallenge := ""
-				f := func() error {
-
-					start := time.Now().Nanosecond()
-					// 发送心跳,暂无必要
-					/*err = selector.Heartbeat()
-					if err != nil {
-						log.Error(err)
-					}*/
-					// 获取挑战值
-					challenge, err := selector.GetChallenge()
-					if err == standardConst.ChallengeError {
-						log.Info(err)
-					}
-					if err != nil {
-						return err
-					}
-					if challenge == preChallenge {
-						log.Infof("已发送当前挑战值")
-						return nil
-					}
-
-					challengeByte, err := base64.StdEncoding.DecodeString(challenge)
-					if err != nil {
-						return err
-					}
-
-					keysChan, _ := node.Blockstore.AllKeysChan(context.TODO())
-					mineral := model.IpfsMining{
-						Challenge: challenge,
-					}
-					max := 0
-					num := 0
-					fail := 0
-					// TODO 缓存cid进一个更方便查找的结构？暂时看起来性能是ok的
-					for c := range keysChan {
-						num++
-						hash := c.Hash()
-						decode, err := mh.Decode(hash)
-						if err != nil || decode.Length != 32 {
-							fail++
-							continue
-						}
-						temp := CommonPrefixLen(decode.Digest, challengeByte)
-
-						if max < temp {
-							max = temp
-							mineral.Cid = c.String()
-							mineral.Hash = base64.StdEncoding.EncodeToString(decode.Digest)
-						}
-					}
-					mineral.LeadingZero = max
-					// 发送矿物
-					err = selector.Mining(mineral)
-					// todo 发送错误应当重新发送
-					if err != nil {
-						return err
-					}
-					preChallenge = challenge
-					log.Infof("mining结束，耗时：%vns,参与块数：%v块.失败：%v块，最佳cid为%v，前导零为%v\n", (time.Now().Nanosecond()-start)/int(time.Millisecond), num, fail, mineral.Cid, max)
-					return nil
-				}
-				// 启动时先执行一次
-				f()
-				for {
-					select {
-					case <-ticker.C:
-						err := f()
-						if err != nil {
-							log.Error(err)
-						}
-					case <-req.Context.Done():
-						break
-					}
-				}
+				go func() {
+					miningStage(req.Context, node)
+				}()
 			}()
 
-			go func() {
-				tickerTime := defaultTickerTime
-
-				// todo 新的配置项
-				if cfg.PullNewFileTime != 0 {
-					tickerTime = cfg.PullNewFileTime
-				}
-				// todo 时间调整
-				ticker := time.NewTicker(time.Duration(tickerTime) * time.Minute)
-
-				api, err := coreapi.NewCoreAPI(node)
-				if err != nil {
-					log.Errorf("failed to access CoreAPI: %v", err)
-				}
-				mine.GetNewFile(req.Context, node.Repo.Datastore(), api)
-				for {
-					select {
-					case <-ticker.C:
-						err := mine.GetNewFile(req.Context, node.Repo.Datastore(), api)
-						if err != nil {
-							log.Error(err)
-						}
-					case <-req.Context.Done():
-						break
-					}
-				}
-			}()
 		}
 	}
 
@@ -716,30 +613,6 @@ func daemonFunc(req *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment
 	}
 
 	return errs
-}
-
-// CommonPrefixLen 计算两个32位byte数组的共同前导
-func CommonPrefixLen(a, b []byte) int {
-	if len(a) != 32 || len(b) != 32 {
-		log.Error("前导零计算，位数错误")
-		return 0
-	}
-	for i := 0; i < 32; i++ {
-		c := a[i] ^ b[i]
-		if c != 0 {
-			return i*8 + bits.LeadingZeros8(uint8(c))
-		}
-	}
-	return 32 * 8
-}
-
-func GetCidHash(c cid.Cid) ([]byte, error) {
-	hash := c.Hash()
-	decode, err := mh.Decode(hash)
-	if err != nil || decode.Length != 32 {
-		return nil, err
-	}
-	return decode.Digest, nil
 }
 
 // serveHTTPApi collects options, creates listener, prints status message and starts serving requests

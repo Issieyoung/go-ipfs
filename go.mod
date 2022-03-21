@@ -4,6 +4,7 @@ require (
 	bazil.org/fuse v0.0.0-20200117225306-7b5117fecadc
 	contrib.go.opencensus.io/exporter/prometheus v0.3.0
 	github.com/Hyperledger-TWGC/tjfoc-gm v1.4.0
+	github.com/astaxie/beego v1.12.3 // indirect
 	github.com/bdengine/go-ipfs-blockchain-selector v0.0.4
 	github.com/bdengine/go-ipfs-blockchain-standard v0.0.2
 	github.com/blang/semver/v4 v4.0.0

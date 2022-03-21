@@ -1,8 +1,14 @@
-package mine
+package mining
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
+	"github.com/bdengine/go-ipfs-blockchain-standard/algorithm"
 	"github.com/ipfs/go-cid"
+	coreiface "github.com/ipfs/interface-go-ipfs-core"
+	"sync"
 )
 
 const (
@@ -12,24 +18,24 @@ const (
 
 type node struct {
 	key   cid.Cid
-	value int
+	value *algorithm.Hash
 	color bool
 	left  *node
 	right *node
 }
 
 type redBlackTree struct {
-	size int
-	root *node
+	size           int
+	root           *node
+	StoreChallenge []byte
+	lock           sync.RWMutex
+	api            coreiface.CoreAPI
 }
 
-func newNode(key cid.Cid, val int) *node {
+func newNode(key cid.Cid, val *algorithm.Hash) *node {
 	// 默认添加红节点
+	// val
 	return &node{key, val, Red, nil, nil}
-}
-
-func NewRedBlackTree() *redBlackTree {
-	return new(redBlackTree)
 }
 
 func (nd *node) isRed() bool {
@@ -39,16 +45,43 @@ func (nd *node) isRed() bool {
 	return nd.color
 }
 
-func (tree *redBlackTree) GetSize() int {
+func (tree *redBlackTree) getSize() int {
+	tree.lock.RLock()
+	defer tree.lock.RUnlock()
 	return tree.size
 }
 
-// 向红黑树中添加元素
-func (tree *redBlackTree) Add(key cid.Cid, val int) {
+// Add 向红黑树中添加元素
+func (tree *redBlackTree) add(key cid.Cid) bool {
+	tree.lock.Lock()
+	defer tree.lock.Unlock()
+
+	get, _ := tree.api.Dag().Get(context.Background(), key)
+	s := sha256.Sum256(append(tree.StoreChallenge, get.RawData()...))
+	val := algorithm.GetHashPointer(s[:])
+
 	isAdd, nd := tree.root.add(key, val)
 	tree.size += isAdd
 	tree.root = nd
 	tree.root.color = Black //根节点为黑色节点
+	return isAdd == 1
+}
+
+// Add 向红黑树中添加元素
+func (tree *redBlackTree) addMany(ctx context.Context, kl []cid.Cid) {
+	tree.lock.Lock()
+	defer tree.lock.Unlock()
+
+	for _, key := range kl {
+		get, _ := tree.api.Dag().Get(ctx, key)
+		s := sha256.Sum256(append(tree.StoreChallenge, get.RawData()...))
+		val := algorithm.GetHashPointer(s[:])
+
+		isAdd, nd := tree.root.add(key, val)
+		tree.size += isAdd
+		tree.root = nd
+		tree.root.color = Black //根节点为黑色节点
+	}
 }
 
 const (
@@ -75,7 +108,7 @@ func equal(ca, cb cid.Cid) int {
 // 递归写法:向树的root节点中插入key,val
 // 返回1,代表加了节点
 // 返回0,代表没有添加新节点,只更新key对应的value值
-func (nd *node) add(key cid.Cid, val int) (int, *node) {
+func (nd *node) add(key cid.Cid, val *algorithm.Hash) (int, *node) {
 	if nd == nil { // 默认插入红色节点
 		return 1, newNode(key, val)
 	}
@@ -163,7 +196,9 @@ func (nd *node) flipColors() {
 }
 
 // 前序遍历打印出key,val,color
-func (tree *redBlackTree) PrintPreOrder() {
+func (tree *redBlackTree) printPreOrder() {
+	tree.lock.RLock()
+	defer tree.lock.RUnlock()
 	resp := [][]interface{}{}
 	tree.root.printPreOrder(&resp)
 	fmt.Println(resp)
@@ -201,28 +236,72 @@ func (nd *node) middleOrder(resp *[]cid.Cid) {
 	nd.right.middleOrder(resp)
 }
 
-var max *node
-var maxLen int = -1
+func (tree *redBlackTree) getSortList(pidByte []byte) SortList {
+	tree.lock.RLock()
+	defer tree.lock.RUnlock()
+	var res []*algorithm.ProofLeaf
+	tree.root.getSortList(&res, pidByte)
+	return res
+}
 
-func (nd *node) Search(c cid.Cid) (*node, int) {
+func (tree *redBlackTree) getMerkleTree(pidByte []byte) (SortList, int) {
+	tree.lock.RLock()
+	defer tree.lock.RUnlock()
+	var res []*algorithm.ProofLeaf
+	tree.root.getSortList(&res, pidByte)
+
+	return algorithm.BuildMerkleTreeStore(res, pidByte), tree.size
+}
+
+func ByteEqual(b1, b2 []byte) bool {
+	if len(b1) != len(b2) {
+		return false
+	}
+	for i := 0; i < len(b1); i++ {
+		if b1[i] != b2[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (nd *node) getSortList(resp *[]*algorithm.ProofLeaf, pidByte []byte) {
 	if nd == nil {
-		return nil, -1
+		return
 	}
-	lroot := CommonPrefixLen(getHash(nd.key), getHash(c))
-	if lroot > maxLen {
-		maxLen = lroot
-		max = nd
-	}
+	nd.left.getSortList(resp, pidByte)
+	*resp = append(*resp, algorithm.NewProofLeaf(nd.key, nd.value, pidByte))
+	nd.right.getSortList(resp, pidByte)
+}
 
-	l, ll := nd.left.Search(c)
-	if ll > lroot {
-		maxLen = ll
-		max = l
+// TODO cid，challenge计算证明
+func getChallengeHash(challenge []byte, c cid.Cid, api coreiface.CoreAPI) *algorithm.Hash {
+	get, _ := api.Dag().Get(context.Background(), c)
+	h := sha256.New()
+	h.Write(challenge)
+	h.Write(get.RawData())
+	sum := h.Sum(nil)
+	return algorithm.GetHashPointer(sum)
+}
+
+func (nd *node) updateStoreChallenge(challenge []byte, api coreiface.CoreAPI) {
+	if nd == nil {
+		return
 	}
-	r, lr := nd.right.Search(c)
-	if lr > lroot {
-		maxLen = lr
-		max = r
+	nd.left.updateStoreChallenge(challenge, api)
+
+	nd.value = getChallengeHash(challenge, nd.key, api)
+
+	nd.right.updateStoreChallenge(challenge, api)
+}
+
+func (tree *redBlackTree) updateStoreChallenge(challenge string) {
+	tree.lock.Lock()
+	defer tree.lock.Unlock()
+	b, _ := base64.StdEncoding.DecodeString(challenge)
+	if ByteEqual(b, tree.StoreChallenge) {
+		return
 	}
-	return max, maxLen
+	tree.StoreChallenge = b
+	tree.root.updateStoreChallenge(b, tree.api)
 }
