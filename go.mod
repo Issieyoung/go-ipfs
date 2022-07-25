@@ -89,7 +89,7 @@ require (
 	github.com/libp2p/go-socket-activation v0.0.2
 	github.com/libp2p/go-tcp-transport v0.2.2
 	github.com/libp2p/go-ws-transport v0.4.0
-	github.com/lucas-clemente/quic-go v0.21.1
+	github.com/lucas-clemente/quic-go v0.28.1
 	github.com/miekg/dns v1.1.41
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.3.2
@@ -110,7 +110,7 @@ require (
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912
+	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
 )
 
 go 1.15
